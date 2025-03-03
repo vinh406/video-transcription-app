@@ -22,14 +22,14 @@ export function UploadPage() {
             const mediaUrl = URL.createObjectURL(file);
 
             // Call API for transcription
-            const data = await transcribeFile(file, service, language);
+            const response = await transcribeFile(file, service, language);
 
             // Navigate to view page with state
             navigate("/view", {
                 state: {
                     mediaType,
                     mediaUrl,
-                    transcript: data.data.segments,
+                    transcript: response.data.segments,
                     fileName: file.name,
                 },
             });

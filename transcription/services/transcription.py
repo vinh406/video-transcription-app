@@ -42,6 +42,7 @@ try:
 
     if os.getenv("ELEVENLABS_API_KEY"):
         eleven_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+        print(os.getenv("ELEVENLABS_API_KEY"))
         print("ElevenLabs client initialized successfully")
     else:
         print("Warning: ELEVENLABS_API_KEY not found in environment variables")
@@ -197,11 +198,9 @@ def transcribe_elevenlabs_api(file_path, language=None):
     # Handle language code properly
     if not language or language == "auto":
         lang_code = None  # Use None for auto-detection
-        print("Using auto language detection")
     else:
         # Convert 2-letter to 3-letter code if possible
         lang_code = lang_map.get(language, language)
-        print(f"Using language code: {lang_code}")
 
     try:
         # Call ElevenLabs API

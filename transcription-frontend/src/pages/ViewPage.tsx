@@ -39,8 +39,8 @@ export function ViewPage() {
 
         setIsSummarizing(true);
         try {
-            const data = await summarizeTranscript(transcript);
-            setSummary(data.summary_data || data.summary);
+            const response = await summarizeTranscript(transcript);
+            setSummary(response.data.summary_data);
         } catch (error) {
             console.error("Summarization failed:", error);
         } finally {

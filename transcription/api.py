@@ -1,10 +1,10 @@
-from ninja import NinjaAPI, File, Schema
+from ninja import Form, NinjaAPI, File, Schema
 from ninja.files import UploadedFile
 from .models import MediaFile, Transcription
 import hashlib
 import tempfile
 import os
-from typing import Optional
+from typing import List, Dict, Any
 
 # Import your existing transcription functionality
 from .services.transcription import (
@@ -26,6 +26,11 @@ class TranscriptionResult(Schema):
     message: str
     data: dict = None
 
+class SummarizeRequest(Schema):
+    """Schema for summarize request body"""
+
+    segments: List[Dict[str, Any]]
+
 
 class ErrorResponse(Schema):
     message: str
@@ -36,11 +41,11 @@ class ErrorResponse(Schema):
     response={200: TranscriptionResult, 400: ErrorResponse, 500: ErrorResponse},
 )
 def transcribe_audio(
-    request,
-    file: UploadedFile = File(...),
-    service: str = "whisperx",
-    language: str = "auto",
+    request, file: UploadedFile = File(...), params: Form[TranscriptionRequest] = None
 ):
+    service = params.service if params else "whisperx"
+    language = params.language if params else "auto"
+
     # Create temp file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         for chunk in file.chunks():
@@ -91,7 +96,7 @@ def transcribe_audio(
         transcription = Transcription(
             media_file=media_file,
             service=service,
-            language=language if language != "auto" else result.get("language", "auto"),
+            language=language,
             segments=result,
         )
         transcription.save()
@@ -100,8 +105,6 @@ def transcribe_audio(
 
     except ValueError as e:
         return 400, {"message": f"Bad request: {str(e)}"}
-    except Exception as e:
-        return 500, {"message": f"Server error: {str(e)}"}
     finally:
         # Clean up temp file
         if os.path.exists(temp_audio.name):
@@ -112,17 +115,15 @@ def transcribe_audio(
     "/summarize",
     response={200: TranscriptionResult, 400: ErrorResponse, 500: ErrorResponse},
 )
-def summarize_transcript(request, data: dict):
-    if "segments" not in data:
-        return 400, {"message": "No transcript segments provided"}
-
+def summarize_transcript(request, data: SummarizeRequest):
+    """
+    Generate a summary from transcript segments.
+    """
     try:
-        summary_result = summarize_content(data["segments"])
+        summary_result = summarize_content(data.segments)
         return 200, {
             "message": "Summary generated successfully",
             "data": summary_result,
         }
     except ValueError as e:
         return 400, {"message": f"Bad request: {str(e)}"}
-    except Exception as e:
-        return 500, {"message": f"Server error: {str(e)}"}

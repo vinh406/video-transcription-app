@@ -8,7 +8,7 @@ export async function transcribeFile(
     const formData = new FormData();
     formData.append("file", file);
     formData.append("service", service);
-    formData.append("lang", language);
+    formData.append("language", language);
 
     const response = await fetch(`${API_BASE_URL}/transcribe`, {
         method: "POST",
