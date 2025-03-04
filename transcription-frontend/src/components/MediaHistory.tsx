@@ -74,9 +74,7 @@ export function MediaHistory() {
             navigate("/view", {
                 state: {
                     mediaType,
-                    // We don't have the actual media file URL from the server
-                    // This is a limitation we'll need to address
-                    mediaUrl: null,
+                    mediaUrl: response.media_url,
                     transcript: response.data.segments,
                     fileName: mediaItem.file_name,
                     fromHistory: true,

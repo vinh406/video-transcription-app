@@ -13,6 +13,7 @@ export async function transcribeFile(
     const response = await fetch(`${API_BASE_URL}/transcription/transcribe`, {
         method: "POST",
         body: formData,
+        credentials: "include",
     });
 
     if (!response.ok) {
@@ -27,6 +28,7 @@ export async function summarizeTranscript(segments: unknown[]) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ segments }),
+        credentials: "include",
     });
 
     if (!response.ok) {
@@ -36,23 +38,26 @@ export async function summarizeTranscript(segments: unknown[]) {
     return response.json();
 }
 
-
 // Auth functions
-export async function signup(username: string, email: string, password: string) {
-  const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-    method: "POST",
-    body: JSON.stringify({ username, email, password }),
-    credentials: "include",
-  });
-  
-  const data = await response.json();
-  return data;
+export async function signup(
+    username: string,
+    email: string,
+    password: string
+) {
+    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+        method: "POST",
+        body: JSON.stringify({ username, email, password }),
+        credentials: "include",
+    });
+
+    const data = await response.json();
+    return data;
 }
 
 export async function login(username: string, password: string) {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
         credentials: "include",
     });
@@ -61,17 +66,17 @@ export async function login(username: string, password: string) {
 }
 
 export async function logout() {
-  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-    method: "POST",
-    credentials: "include",
-  });
-  
-  const data = await response.json();
-  return data;
+    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+    });
+
+    const data = await response.json();
+    return data;
 }
 
 export async function getCurrentUser() {
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
         method: "GET",
         credentials: "include",
     });
@@ -85,22 +90,24 @@ export async function getCurrentUser() {
     return data;
 }
 
-
 // Media history
 export async function getMediaHistory() {
-      const response = await fetch(`${API_BASE_URL}/transcription/media/history`, {
-        method: "GET",
-        credentials: "include",
-    });
+    const response = await fetch(
+        `${API_BASE_URL}/transcription/media/history`,
+        {
+            method: "GET",
+            credentials: "include",
+        }
+    );
     return response.json();
 }
 
 export async function getMediaDetails(mediaId: string) {
-      const response = await fetch(
+    const response = await fetch(
         `${API_BASE_URL}/transcription/media/${mediaId}`,
         {
             method: "GET",
-                credentials: "include",
+            credentials: "include",
         }
     );
     return response.json();

@@ -26,6 +26,8 @@ class TranscriptionRequest(Schema):
 class TranscriptionResult(Schema):
     message: str
     data: dict = None
+    media_url: str = None
+    file_name: str = None
 
 class SummarizeRequest(Schema):
     """Schema for summarize request body"""
@@ -88,7 +90,7 @@ def transcribe_audio(
                 file_name=file.name,
                 file_hash=file_hash,
                 mime_type=file.content_type,
-                user=request.user,
+                user=request.user if request.user.is_authenticated else None,
             )
             media_file.save()
 
@@ -172,7 +174,11 @@ def get_user_media_history(request):
 
     return result
 
-@api.get("/media/{media_id}", response={200: TranscriptionResult, 404: ErrorResponse}, auth=django_auth)
+@api.get(
+    "/media/{media_id}",
+    response={200: TranscriptionResult, 404: ErrorResponse},
+    auth=django_auth,
+)
 def get_media_details(request, media_id: str):
     try:
         # Verify the user owns this media file
@@ -191,6 +197,8 @@ def get_media_details(request, media_id: str):
         return 200, {
             "message": "Transcription retrieved",
             "data": transcription.segments,
+            "media_url": media_file.file.url,
+            "file_name": media_file.file_name,
         }
 
     except MediaFile.DoesNotExist:
