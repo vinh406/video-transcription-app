@@ -16,9 +16,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from transcription.api import api as transcription_api
+from .api import api
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", transcription_api.urls),
+    path("api/", api.urls),
 ]

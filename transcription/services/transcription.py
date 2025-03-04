@@ -42,7 +42,6 @@ try:
 
     if os.getenv("ELEVENLABS_API_KEY"):
         eleven_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
-        print(os.getenv("ELEVENLABS_API_KEY"))
         print("ElevenLabs client initialized successfully")
     else:
         print("Warning: ELEVENLABS_API_KEY not found in environment variables")

@@ -1,10 +1,11 @@
-from ninja import Form, NinjaAPI, File, Schema
+from ninja import Form, Router, File, Schema
 from ninja.files import UploadedFile
 from .models import MediaFile, Transcription
 import hashlib
 import tempfile
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from ninja.security import django_auth
 
 # Import your existing transcription functionality
 from .services.transcription import (
@@ -14,7 +15,7 @@ from .services.transcription import (
     summarize_content,
 )
 
-api = NinjaAPI()
+api = Router()
 
 
 class TranscriptionRequest(Schema):
@@ -31,6 +32,14 @@ class SummarizeRequest(Schema):
 
     segments: List[Dict[str, Any]]
 
+class MediaFileSchema(Schema):
+    id: str
+    file_name: str
+    mime_type: str
+    created_at: str
+    has_transcript: bool
+    has_summary: bool
+    service: Optional[str] = None
 
 class ErrorResponse(Schema):
     message: str
@@ -79,6 +88,7 @@ def transcribe_audio(
                 file_name=file.name,
                 file_hash=file_hash,
                 mime_type=file.content_type,
+                user=request.user,
             )
             media_file.save()
 
@@ -127,3 +137,61 @@ def summarize_transcript(request, data: SummarizeRequest):
         }
     except ValueError as e:
         return 400, {"message": f"Bad request: {str(e)}"}
+
+@api.get("/media/history", response={200: List[MediaFileSchema]}, auth=django_auth)
+def get_user_media_history(request):
+    user = request.user
+    media_files = MediaFile.objects.filter(user=user).order_by("-created_at")
+
+    result = []
+    for media_file in media_files:
+        # Check if transcription exists
+        transcription = Transcription.objects.filter(media_file=media_file).first()
+        has_transcript = transcription is not None
+
+        # Check if summary exists (a summary would be in the segments field as a summary_data key)
+        has_summary = False
+        if transcription and transcription.segments:
+            if (
+                isinstance(transcription.segments, dict)
+                and "summary_data" in transcription.segments
+            ):
+                has_summary = True
+
+        result.append(
+            {
+                "id": str(media_file.id),
+                "file_name": media_file.file_name,
+                "mime_type": media_file.mime_type,
+                "created_at": media_file.created_at.isoformat(),
+                "has_transcript": has_transcript,
+                "has_summary": has_summary,
+                "service": transcription.service if transcription else None,
+            }
+        )
+
+    return result
+
+@api.get("/media/{media_id}", response={200: TranscriptionResult, 404: ErrorResponse}, auth=django_auth)
+def get_media_details(request, media_id: str):
+    try:
+        # Verify the user owns this media file
+        media_file = MediaFile.objects.get(id=media_id, user=request.user)
+
+        # Get the latest transcription
+        transcription = (
+            Transcription.objects.filter(media_file=media_file)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not transcription:
+            return 404, {"message": "No transcription found for this media"}
+
+        return 200, {
+            "message": "Transcription retrieved",
+            "data": transcription.segments,
+        }
+
+    except MediaFile.DoesNotExist:
+        return 404, {"message": "Media file not found"}

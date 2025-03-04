@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileUpload } from "@/components/FileUpload";
+import { MediaHistory } from "@/components/MediaHistory";
 import { transcribeFile } from "@/lib/api";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { LogOut, User } from "lucide-react";
 
 export function UploadPage() {
     const [isTranscribing, setIsTranscribing] = useState(false);
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
 
     const handleFileUpload = async (
         file: File,
@@ -39,13 +45,59 @@ export function UploadPage() {
         }
     };
 
+    const handleLogout = async () => {
+        await logout();
+        navigate("/");
+    };
+
     return (
         <div className="container mx-auto max-w-4xl py-8">
-            <h1 className="text-2xl font-bold mb-6">Upload Media</h1>
-            <FileUpload
-                onUpload={handleFileUpload}
-                isLoading={isTranscribing}
-            />
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold">Transcription App</h1>
+                {user ? (
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <User size={16} />
+                            <span>{user.username}</span>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleLogout}
+                            className="flex items-center gap-2"
+                        >
+                            <LogOut size={16} />
+                            Logout
+                        </Button>
+                    </div>
+                ) : (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate("/login")}
+                    >
+                        Login
+                    </Button>
+                )}
+            </div>
+
+            <Tabs defaultValue="upload" className="mb-8">
+                <TabsList className="mb-4">
+                    <TabsTrigger value="upload">Upload New</TabsTrigger>
+                    <TabsTrigger value="history">Media History</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="upload" className="mt-4">
+                    <FileUpload
+                        onUpload={handleFileUpload}
+                        isLoading={isTranscribing}
+                    />
+                </TabsContent>
+
+                <TabsContent value="history" className="mt-4">
+                    <MediaHistory />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
