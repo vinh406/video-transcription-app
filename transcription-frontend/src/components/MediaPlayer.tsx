@@ -17,6 +17,7 @@ import {
     VolumeX,
     Maximize,
 } from "lucide-react";
+import { VideoVolumeSlider } from "@/components/ui/VideoVolumeSlider";
 
 export interface MediaPlayerHandle {
     seekTo: (time: number) => void;
@@ -233,7 +234,6 @@ export const MediaPlayer = forwardRef<MediaPlayerHandle, MediaPlayerProps>(
             );
         }
 
-        // Video/YouTube UI
         return (
             <div
                 ref={containerRef}
@@ -241,6 +241,14 @@ export const MediaPlayer = forwardRef<MediaPlayerHandle, MediaPlayerProps>(
                 onMouseEnter={() => setIsControlsVisible(true)}
                 onMouseLeave={() => isPlaying && setIsControlsVisible(false)}
             >
+                {/* Add a click handler overlay that covers the video but not the controls */}
+                {type !== "youtube" && (
+                    <div
+                        className="absolute inset-0 z-1"
+                        onClick={togglePlayPause}
+                    />
+                )}
+
                 <ReactPlayer
                     ref={playerRef}
                     url={url}
@@ -251,24 +259,12 @@ export const MediaPlayer = forwardRef<MediaPlayerHandle, MediaPlayerProps>(
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
                     onDuration={(dur) => setDuration(dur)}
-                    config={{
-                        youtube: {
-                            playerVars: {
-                                modestbranding: 1,
-                                rel: 0,
-                                controls: type === "youtube" ? 1 : 0,
-                            },
-                        },
-                        file: {
-                            forceAudio: false,
-                        },
-                    }}
                 />
 
                 {/* Video controls */}
                 {type !== "youtube" && (
                     <div
-                        className={`absolute bottom-0 left-0 right-0 bg-black/70 p-4 transition-opacity ${
+                        className={`z-2 absolute bottom-0 left-0 right-0 bg-black/70 p-4 transition-opacity ${
                             isControlsVisible ? "opacity-100" : "opacity-0"
                         }`}
                     >
@@ -337,7 +333,7 @@ export const MediaPlayer = forwardRef<MediaPlayerHandle, MediaPlayerProps>(
                                     )}
                                 </Button>
 
-                                <Slider
+                                <VideoVolumeSlider
                                     value={[isMuted ? 0 : volume]}
                                     min={0}
                                     max={1}
