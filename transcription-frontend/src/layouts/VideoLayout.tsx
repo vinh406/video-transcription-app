@@ -1,10 +1,9 @@
 import { useState, useRef } from "react";
 import { TranscriptPanel } from "../components/TranscriptPanel";
 import { SummaryPanel } from "../components/SummaryPanel";
-import { VideoPlayer } from "../components/VideoPlayer";
 import { Button } from "@/components/ui/button";
 import { Segment } from "@/types/segment";
-import { YouTubePlayer } from "../components/YouTubePlayer";
+import { MediaPlayer, MediaPlayerHandle } from "@/components/MediaPlayer";
 
 interface VideoLayoutProps {
     videoUrl: string | null;
@@ -25,7 +24,7 @@ export default function VideoLayout({
 }: VideoLayoutProps) {
     const [currentTime, setCurrentTime] = useState(0);
     const [showSummary, setShowSummary] = useState(false);
-    const videoPlayerRef = useRef<HTMLVideoElement>(null);
+    const mediaPlayerRef = useRef<MediaPlayerHandle>(null);
 
     const handleTimeUpdate = (time: number) => {
         setCurrentTime(time);
@@ -37,8 +36,8 @@ export default function VideoLayout({
     };
 
     const handleSeek = (time: number) => {
-        if (videoPlayerRef.current) {
-            videoPlayerRef.current.currentTime = time;
+        if (mediaPlayerRef.current) {
+            mediaPlayerRef.current.seekTo(time);
         }
     };
 
@@ -49,18 +48,12 @@ export default function VideoLayout({
                 <div className="flex-1 flex">
                     <div className="w-3/5 h-full flex items-center justify-center bg-black">
                         <div className="w-full aspect-video">
-                            {isYoutube ? (
-                                <YouTubePlayer
-                                    videoId={videoUrl}
-                                    onTimeUpdate={handleTimeUpdate}
-                                />
-                            ) : (
-                                <VideoPlayer
-                                    src={videoUrl}
-                                    onTimeUpdate={handleTimeUpdate}
-                                    ref={videoPlayerRef}
-                                />
-                            )}
+                            <MediaPlayer
+                                src={videoUrl}
+                                type={isYoutube ? "youtube" : "video"}
+                                onTimeUpdate={handleTimeUpdate}
+                                ref={mediaPlayerRef}
+                            />
                         </div>
                     </div>
                     <div className="w-2/5 h-155 flex flex-col border-l">
@@ -86,23 +79,17 @@ export default function VideoLayout({
                     </div>
                 </div>
             ) : (
-                // After summarize: Video on left top, transcript below it, summary on right
+                // After summarize: Layout stays the same but with MediaPlayer
                 <div className="flex-1 flex h-full">
                     <div className="w-3/5 h-155 flex flex-col">
                         <div className="aspect-video bg-black">
                             <div className="w-full aspect-video">
-                                {isYoutube ? (
-                                    <YouTubePlayer
-                                        videoId={videoUrl}
-                                        onTimeUpdate={handleTimeUpdate}
-                                    />
-                                ) : (
-                                    <VideoPlayer
-                                        src={videoUrl}
-                                        onTimeUpdate={handleTimeUpdate}
-                                        ref={videoPlayerRef}
-                                    />
-                                )}
+                                <MediaPlayer
+                                    src={videoUrl}
+                                    type={isYoutube ? "youtube" : "video"}
+                                    onTimeUpdate={handleTimeUpdate}
+                                    ref={mediaPlayerRef}
+                                />
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto">

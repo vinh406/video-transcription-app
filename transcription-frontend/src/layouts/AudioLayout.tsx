@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { TranscriptPanel } from "../components/TranscriptPanel";
 import { SummaryPanel } from "../components/SummaryPanel";
-import { AudioPlayer } from "../components/AudioPlayer";
+import { MediaPlayer, MediaPlayerHandle } from "@/components/MediaPlayer";
 import { Button } from "@/components/ui/button";
 import { Segment } from "@/types/segment";
 
@@ -22,7 +22,7 @@ export default function AudioLayout({
 }: AudioLayoutProps) {
     const [currentTime, setCurrentTime] = useState(0);
     const [showSummary, setShowSummary] = useState(false);
-    const audioPlayerRef = useRef<HTMLAudioElement>(null);
+    const mediaPlayerRef = useRef<MediaPlayerHandle>(null);
 
     const handleTimeUpdate = (time: number) => {
         setCurrentTime(time);
@@ -35,8 +35,8 @@ export default function AudioLayout({
 
     // This function will seek the audio player to the specified time
     const handleSeek = (time: number) => {
-        if (audioPlayerRef.current) {
-            audioPlayerRef.current.currentTime = time;
+        if (mediaPlayerRef.current) {
+            mediaPlayerRef.current.seekTo(time);
         }
     };
 
@@ -72,6 +72,7 @@ export default function AudioLayout({
 
             {/* Main content area */}
             <div className="flex-1 flex overflow-hidden">
+                {/* Content layout remains unchanged */}
                 {showSummary ? (
                     <>
                         <div className="flex-1 h-120 overflow-auto border-r">
@@ -106,12 +107,13 @@ export default function AudioLayout({
                 )}
             </div>
 
-            {/* Fixed audio player at bottom */}
+            {/* Fixed media player at bottom */}
             <div className="h-20 bg-zinc-900 border-t border-zinc-800 fixed bottom-0 left-0 right-0">
-                <AudioPlayer
+                <MediaPlayer
                     src={audioUrl}
+                    type="audio"
                     onTimeUpdate={handleTimeUpdate}
-                    ref={audioPlayerRef}
+                    ref={mediaPlayerRef}
                 />
             </div>
 

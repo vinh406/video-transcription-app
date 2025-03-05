@@ -33,7 +33,23 @@ def download_youtube_audio(youtube_url):
         )
 
         # Return the file path, video title, and mime type
-        return temp_file, yt.title, f"audio/{audio_stream.subtype}", yt.watch_url
+        return temp_file, f"audio/{audio_stream.subtype}"
 
     except Exception as e:
         raise ValueError(f"Failed to download YouTube audio: {str(e)}")
+
+def get_youtube_video_id(youtube_url):
+    """
+    Extract the video ID from a YouTube URL
+
+    Args:
+        youtube_url (str): URL of the YouTube video
+
+    Returns:
+        str: Video ID
+    """
+    try:
+        yt = YouTube(youtube_url)
+        return yt.video_id, yt.title
+    except Exception as e:
+        raise ValueError(f"Failed to extract video ID: {str(e)}")

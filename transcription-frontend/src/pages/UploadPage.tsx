@@ -59,17 +59,13 @@ export function UploadPage() {
                 language
             );
 
-            // Extract video ID for the media URL
-            const videoId = youtubeUrl.split("v=")[1]?.split("&")[0] || "";
-
             navigate("/view", {
                 state: {
                     mediaType: "youtube",
-                    mediaUrl: videoId,
+                    mediaUrl: youtubeUrl,
                     isYoutube: true,
                     transcript: response.data.segments,
-                    fileName:
-                        response.data.file_name || `YouTube: ${videoId}`,
+                    fileName: response.file_name,
                 },
             });
         } catch (error) {

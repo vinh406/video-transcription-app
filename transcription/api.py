@@ -6,6 +6,7 @@ import tempfile
 import os
 from typing import List, Dict, Any, Optional
 from ninja.security import django_auth
+from .services.youtube import download_youtube_audio, get_youtube_video_id
 
 # Import your existing transcription functionality
 from .services.transcription import (
@@ -61,16 +62,12 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
     youtube_url = data.youtube_url
 
     try:
-        # Import the YouTube service
-        from .services.youtube import download_youtube_audio
-
-        # Download the YouTube audio
-        temp_audio_path, video_title, mime_type, video_id = download_youtube_audio(youtube_url)
-
+        temp_audio_path = None
+        
+        # Get the video ID from the URL
+        video_id, video_title = get_youtube_video_id(youtube_url)
+        video_id = video_id.split("v=")[-1].split("&")[0]
         try:
-            # Calculate a unique identifier for this YouTube video
-            video_id = video_id.split("v=")[-1].split("&")[0]
-
             # Check if we've already processed this YouTube video
             media_file = None
             try:
@@ -85,8 +82,12 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
                     return 200, {
                         "message": "Found existing transcription",
                         "data": existing.segments,
+                        "file_name": video_title,
                     }
             except MediaFile.DoesNotExist:
+                # Download the YouTube audio
+                temp_audio_path, mime_type = download_youtube_audio(youtube_url)
+                
                 # Create a new MediaFile for this YouTube video
                 media_file = MediaFile(
                     file_name=video_title,
@@ -115,11 +116,11 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             )
             transcription.save()
 
-            return 200, {"message": "Transcription successful", "data": result}
+            return 200, {"message": "Transcription successful", "data": result, "file_name": video_title, "is_youtube": True, "media_url": youtube_url}
 
         finally:
             # Clean up temp file
-            if os.path.exists(temp_audio_path):
+            if temp_audio_path and os.path.exists(temp_audio_path):
                 os.remove(temp_audio_path)
 
     except ValueError as e:
