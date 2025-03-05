@@ -17,6 +17,10 @@ from .services.transcription import (
 
 api = Router()
 
+class YouTubeTranscriptionRequest(Schema):
+    youtube_url: str
+    service: str
+    language: str = "auto"
 
 class TranscriptionRequest(Schema):
     service: str
@@ -28,6 +32,7 @@ class TranscriptionResult(Schema):
     data: dict = None
     media_url: str = None
     file_name: str = None
+    is_youtube: bool = False
 
 class SummarizeRequest(Schema):
     """Schema for summarize request body"""
@@ -46,6 +51,81 @@ class MediaFileSchema(Schema):
 class ErrorResponse(Schema):
     message: str
 
+@api.post(
+    "/transcribe-youtube",
+    response={200: TranscriptionResult, 400: ErrorResponse, 500: ErrorResponse},
+)
+def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
+    service = data.service
+    language = data.language
+    youtube_url = data.youtube_url
+
+    try:
+        # Import the YouTube service
+        from .services.youtube import download_youtube_audio
+
+        # Download the YouTube audio
+        temp_audio_path, video_title, mime_type, video_id = download_youtube_audio(youtube_url)
+
+        try:
+            # Calculate a unique identifier for this YouTube video
+            video_id = video_id.split("v=")[-1].split("&")[0]
+
+            # Check if we've already processed this YouTube video
+            media_file = None
+            try:
+                # Try to find by URL stored in file_hash field
+                media_file = MediaFile.objects.get(file_hash=video_id)
+
+                # Check if we've transcribed with this service and language
+                existing = Transcription.objects.filter(
+                    media_file=media_file, service=service, language=language
+                ).first()
+                if existing:
+                    return 200, {
+                        "message": "Found existing transcription",
+                        "data": existing.segments,
+                    }
+            except MediaFile.DoesNotExist:
+                # Create a new MediaFile for this YouTube video
+                media_file = MediaFile(
+                    file_name=video_title,
+                    file_hash=video_id,
+                    mime_type=mime_type,
+                    user=request.user if request.user.is_authenticated else None,
+                )
+                media_file.save()
+
+            # Perform transcription based on service
+            result = None
+
+            if service == "google":
+                result = transcribe_google_api(temp_audio_path, language=language)
+            elif service == "elevenlabs":
+                result = transcribe_elevenlabs_api(temp_audio_path, language=language)
+            else:  # whisperx
+                result = transcribe_whisperx(temp_audio_path, language=language)
+
+            # Save the transcription result
+            transcription = Transcription(
+                media_file=media_file,
+                service=service,
+                language=language,
+                segments=result,
+            )
+            transcription.save()
+
+            return 200, {"message": "Transcription successful", "data": result}
+
+        finally:
+            # Clean up temp file
+            if os.path.exists(temp_audio_path):
+                os.remove(temp_audio_path)
+
+    except ValueError as e:
+        return 400, {"message": f"Bad request: {str(e)}"}
+    except Exception as e:
+        return 500, {"message": f"Server error: {str(e)}"}
 
 @api.post(
     "/transcribe",
@@ -193,13 +273,22 @@ def get_media_details(request, media_id: str):
 
         if not transcription:
             return 404, {"message": "No transcription found for this media"}
-
-        return 200, {
+        
+        response_data = {
             "message": "Transcription retrieved",
             "data": transcription.segments,
-            "media_url": media_file.file.url,
             "file_name": media_file.file_name,
         }
+        
+        is_youtube = len(media_file.file_hash) == 11
+
+        if is_youtube:
+            response_data["is_youtube"] = True
+            response_data["media_url"] = media_file.file_hash
+        else:
+            response_data["media_url"] = media_file.file.url
+
+        return 200, response_data
 
     except MediaFile.DoesNotExist:
         return 404, {"message": "Media file not found"}

@@ -252,6 +252,7 @@ dependencies = [
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/88/16007b67c2835670741076bcd06d20ac35a8e503674d9e1bbaf75bdcc85f/boto3-1.37.6.tar.gz", hash = "sha256:e2f4a1edb7e6dbd541c2962117e1c6fea8d5a42788c441a958700a43a3ca7c47", size = 111340 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3b/cc/b073d893fc9296b4a2360299c546b45b49470d0a87f3ffd876b14819aa60/boto3-1.37.6-py3-none-any.whl", hash = "sha256:4c661389e68437a3fbc1f63decea24b88f7175e022c68622848d47fdf6e0144f", size = 139542 },
 ]
@@ -877,6 +878,7 @@ dependencies = [
     { name = "markupsafe" },
     { name = "psycopg2" },
     { name = "python-dotenv" },
+    { name = "pytubefix" },
     { name = "torch", version = "2.3.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "torch", version = "2.3.1+cu121", source = { registry = "https://download.pytorch.org/whl/cu121" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "torchaudio", version = "2.3.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -898,6 +900,7 @@ requires-dist = [
     { name = "markupsafe", specifier = "==2.1.5" },
     { name = "psycopg2", specifier = ">=2.9.10" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "pytubefix", specifier = ">=8.12.2" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==2.3.1" },
     { name = "torch", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = "==2.3.1", index = "https://download.pytorch.org/whl/cu121" },
     { name = "torchaudio", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==2.3.1" },
@@ -2259,6 +2262,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pytubefix"
+version = "8.12.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/78/052f22b47e8acff8543b2a5b113d4c034c8c1c232ed77a5d9e32c33399f4/pytubefix-8.12.2.tar.gz", hash = "sha256:65d70a27806b1c129340c770243c3bbebc6b8a74f4cc30aa7803a192fdef94e1", size = 733063 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/d5/5a39f5515767d7615da06940b492c821fb7269c897702fa9de1190ef0ca3/pytubefix-8.12.2-py3-none-any.whl", hash = "sha256:061970d55aa1597a69f4e0bd3117de0224a1a3a3da37dc81e9f4ff66ba6875ab", size = 730676 },
+]
+
+[[package]]
 name = "pytz"
 version = "2025.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3054,7 +3066,7 @@ name = "triton"
 version = "2.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "filelock", marker = "(python_full_version < '3.12' and sys_platform == 'linux') or (python_full_version < '3.12' and sys_platform == 'win32')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d7/69/8a9fde07d2d27a90e16488cdfe9878e985a247b2496a4b5b1a2126042528/triton-2.3.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3c84595cbe5e546b1b290d2a58b1494df5a2ef066dd890655e5b8a8a92205c33", size = 168055249 },

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileUpload } from "@/components/FileUpload";
 import { MediaHistory } from "@/components/MediaHistory";
-import { transcribeFile } from "@/lib/api";
+import { transcribeFile, transcribeYouTube } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,39 @@ export function UploadPage() {
             });
         } catch (error) {
             console.error("Transcription failed:", error);
+            setIsTranscribing(false);
+        }
+    };
+
+    const handleYoutubeUpload = async (
+        youtubeUrl: string,
+        service: string,
+        language: string
+    ) => {
+        setIsTranscribing(true);
+        try {
+            // Call API for YouTube transcription
+            const response = await transcribeYouTube(
+                youtubeUrl,
+                service,
+                language
+            );
+
+            // Extract video ID for the media URL
+            const videoId = youtubeUrl.split("v=")[1]?.split("&")[0] || "";
+
+            navigate("/view", {
+                state: {
+                    mediaType: "youtube",
+                    mediaUrl: videoId,
+                    isYoutube: true,
+                    transcript: response.data.segments,
+                    fileName:
+                        response.data.file_name || `YouTube: ${videoId}`,
+                },
+            });
+        } catch (error) {
+            console.error("YouTube transcription failed:", error);
             setIsTranscribing(false);
         }
     };
@@ -91,6 +124,7 @@ export function UploadPage() {
                     <FileUpload
                         onUpload={handleFileUpload}
                         isLoading={isTranscribing}
+                        onYoutubeUpload={handleYoutubeUpload}
                     />
                 </TabsContent>
 

@@ -4,9 +4,11 @@ import { SummaryPanel } from "../components/SummaryPanel";
 import { VideoPlayer } from "../components/VideoPlayer";
 import { Button } from "@/components/ui/button";
 import { Segment } from "@/types/segment";
+import { YouTubePlayer } from "../components/YouTubePlayer";
 
 interface VideoLayoutProps {
     videoUrl: string | null;
+    isYoutube: boolean;
     transcript: Segment[] | null;
     summary: string | null;
     onSummarize: () => void;
@@ -15,6 +17,7 @@ interface VideoLayoutProps {
 
 export default function VideoLayout({
     videoUrl,
+    isYoutube,
     transcript,
     summary,
     onSummarize,
@@ -45,11 +48,20 @@ export default function VideoLayout({
                 // Initial layout: Video on left, transcript on right
                 <div className="flex-1 flex">
                     <div className="w-3/5 h-full flex items-center justify-center bg-black">
-                        <VideoPlayer
-                            src={videoUrl}
-                            onTimeUpdate={handleTimeUpdate}
-                            ref={videoPlayerRef}
-                        />
+                        <div className="w-full aspect-video">
+                            {isYoutube ? (
+                                <YouTubePlayer
+                                    videoId={videoUrl}
+                                    onTimeUpdate={handleTimeUpdate}
+                                />
+                            ) : (
+                                <VideoPlayer
+                                    src={videoUrl}
+                                    onTimeUpdate={handleTimeUpdate}
+                                    ref={videoPlayerRef}
+                                />
+                            )}
+                        </div>
                     </div>
                     <div className="w-2/5 h-155 flex flex-col border-l">
                         <div className="p-4 border-b bg-card">
@@ -78,11 +90,20 @@ export default function VideoLayout({
                 <div className="flex-1 flex h-full">
                     <div className="w-3/5 h-155 flex flex-col">
                         <div className="aspect-video bg-black">
-                            <VideoPlayer
-                                src={videoUrl}
-                                onTimeUpdate={handleTimeUpdate}
-                                ref={videoPlayerRef}
-                            />
+                            <div className="w-full aspect-video">
+                                {isYoutube ? (
+                                    <YouTubePlayer
+                                        videoId={videoUrl}
+                                        onTimeUpdate={handleTimeUpdate}
+                                    />
+                                ) : (
+                                    <VideoPlayer
+                                        src={videoUrl}
+                                        onTimeUpdate={handleTimeUpdate}
+                                        ref={videoPlayerRef}
+                                    />
+                                )}
+                            </div>
                         </div>
                         <div className="flex-1 overflow-y-auto">
                             <div className="p-4">

@@ -8,8 +8,9 @@ import { ArrowLeft, UploadCloud } from "lucide-react";
 import { Segment } from "@/types/segment";
 
 interface ViewPageState {
-    mediaType: "audio" | "video";
+    mediaType: "audio" | "video" | "youtube";
     mediaUrl: string;
+    isYoutube: boolean;
     transcript: Segment[];
     fileName: string;
 }
@@ -32,7 +33,7 @@ export function ViewPage() {
         return null;
     }
 
-    const { mediaType, mediaUrl, transcript, fileName } = state;
+    const { mediaType, mediaUrl, isYoutube, transcript, fileName } = state;
 
     const handleSummarize = async () => {
         if (!transcript) return;
@@ -85,9 +86,10 @@ export function ViewPage() {
                     />
                 )}
 
-                {mediaType === "video" && (
+                {(mediaType === "video" || mediaType === "youtube") && (
                     <VideoLayout
                         videoUrl={mediaUrl}
+                        isYoutube={isYoutube}
                         transcript={transcript}
                         summary={summary}
                         onSummarize={handleSummarize}

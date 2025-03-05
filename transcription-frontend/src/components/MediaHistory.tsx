@@ -65,16 +65,21 @@ export function MediaHistory() {
         try {
             const response = await getMediaDetails(mediaItem.id);
 
-            // Determine media type from MIME type
-            const mediaType = mediaItem.mime_type.startsWith("audio/")
-                ? "audio"
-                : "video";
+            let mediaType;
+            if (response.is_youtube) {
+                mediaType = "youtube";
+            } else {
+                mediaType = mediaItem.mime_type.startsWith("audio/")
+                    ? "audio"
+                    : "video";
+            }
 
             // Navigate to view page with the transcription data
             navigate("/view", {
                 state: {
                     mediaType,
                     mediaUrl: response.media_url,
+                    isYoutube: response.is_youtube,
                     transcript: response.data.segments,
                     fileName: mediaItem.file_name,
                     fromHistory: true,

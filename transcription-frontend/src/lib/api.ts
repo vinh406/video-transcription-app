@@ -112,3 +112,31 @@ export async function getMediaDetails(mediaId: string) {
     );
     return response.json();
 }
+
+export async function transcribeYouTube(
+    youtubeUrl: string,
+    service: string,
+    language: string
+) {
+    const response = await fetch(
+        `${API_BASE_URL}/transcription/transcribe-youtube`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                youtube_url: youtubeUrl,
+                service,
+                language,
+            }),
+            credentials: "include",
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(
+            `YouTube transcription failed with status: ${response.status}`
+        );
+    }
+
+    return response.json();
+}
