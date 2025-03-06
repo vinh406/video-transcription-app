@@ -245,7 +245,7 @@ def get_user_media_history(request):
             {
                 "id": str(media_file.id),
                 "file_name": media_file.file_name,
-                "mime_type": media_file.mime_type,
+                "mime_type": "youtube" if len(media_file.file_hash) == 11 else media_file.mime_type,
                 "created_at": media_file.created_at.isoformat(),
                 "has_transcript": has_transcript,
                 "has_summary": has_summary,

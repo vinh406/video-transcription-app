@@ -8,6 +8,7 @@ import {
     Loader2,
     FileAudio,
     FileVideo,
+    Youtube,
     MessageSquareText,
     FileText,
 } from "lucide-react";
@@ -124,16 +125,19 @@ export function MediaHistory() {
                         onClick={() => handleMediaItemClick(item)}
                     >
                         <div className="flex items-center gap-2 mb-2">
-                            {item.mime_type.startsWith("audio/") ? (
-                                <FileAudio className="w-5 h-5 text-primary" />
-                            ) : (
-                                <FileVideo className="w-5 h-5 text-primary" />
-                            )}
-                            <span className="font-medium truncate">
+                            <div className="flex-shrink-0">
+                                {item.mime_type === "youtube" ? (
+                                    <Youtube className="w-5 h-5 text-red-500" />
+                                ) : item.mime_type.startsWith("audio/") ? (
+                                    <FileAudio className="w-5 h-5 text-primary" />
+                                ) : (
+                                    <FileVideo className="w-5 h-5 text-primary" />
+                                )}
+                            </div>
+                            <span className="font-medium truncate max-w-[calc(100%-2rem)]">
                                 {item.file_name}
                             </span>
                         </div>
-
                         <div className="text-sm text-muted-foreground mb-3">
                             {new Date(item.created_at).toLocaleDateString()}
                             {" • "}

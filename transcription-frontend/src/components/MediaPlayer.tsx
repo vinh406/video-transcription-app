@@ -259,6 +259,7 @@ export const MediaPlayer = forwardRef<MediaPlayerHandle, MediaPlayerProps>(
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
                     onDuration={(dur) => setDuration(dur)}
+                    controls={type === "youtube"}
                 />
 
                 {/* Video controls */}
