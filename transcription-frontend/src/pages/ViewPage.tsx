@@ -6,6 +6,7 @@ import { summarizeTranscript } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, UploadCloud } from "lucide-react";
 import { Segment } from "@/types/segment";
+import { SummaryData } from "@/types/summary";
 
 interface ViewPageState {
     mediaType: "audio" | "video" | "youtube";
@@ -13,12 +14,14 @@ interface ViewPageState {
     isYoutube: boolean;
     transcript: Segment[];
     fileName: string;
+    transcriptionId?: string;
+    summary?: SummaryData;
 }
 
 export function ViewPage() {
     const location = useLocation();
     const navigate = useNavigate();
-    const [summary, setSummary] = useState(null);
+    const [summary, setSummary] = useState(location.state?.summary || null);
     const [isSummarizing, setIsSummarizing] = useState(false);
     const state = location.state as ViewPageState;
 
@@ -38,9 +41,18 @@ export function ViewPage() {
     const handleSummarize = async () => {
         if (!transcript) return;
 
+        // Ensure we have a transcription ID
+        if (!state.transcriptionId) {
+            console.error("Missing transcription ID");
+            return;
+        }
+
         setIsSummarizing(true);
         try {
-            const response = await summarizeTranscript(transcript);
+            const response = await summarizeTranscript(
+                transcript,
+                state.transcriptionId
+            );
             setSummary(response.data.summary_data);
         } catch (error) {
             console.error("Summarization failed:", error);

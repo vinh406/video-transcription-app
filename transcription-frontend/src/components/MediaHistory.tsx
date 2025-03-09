@@ -83,7 +83,8 @@ export function MediaHistory() {
                     isYoutube: response.is_youtube,
                     transcript: response.data.segments,
                     fileName: mediaItem.file_name,
-                    fromHistory: true,
+                    transcriptionId: response.transcription_id,
+                    summary: response.summary,
                 },
             });
         } catch (error) {

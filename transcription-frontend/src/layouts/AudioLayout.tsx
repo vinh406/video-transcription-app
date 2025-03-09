@@ -4,11 +4,12 @@ import { SummaryPanel } from "../components/SummaryPanel";
 import { MediaPlayer, MediaPlayerHandle } from "@/components/MediaPlayer";
 import { Button } from "@/components/ui/button";
 import { Segment } from "@/types/segment";
+import { SummaryData } from "@/types/summary";
 
 interface AudioLayoutProps {
     audioUrl: string | null;
     transcript: Segment[] | null;
-    summary: string | null;
+    summary: SummaryData;
     onSummarize: () => void;
     isSummarizing: boolean;
 }
@@ -21,7 +22,7 @@ export default function AudioLayout({
     isSummarizing,
 }: AudioLayoutProps) {
     const [currentTime, setCurrentTime] = useState(0);
-    const [showSummary, setShowSummary] = useState(false);
+    const [showSummary, setShowSummary] = useState(summary ? true : false);
     const mediaPlayerRef = useRef<MediaPlayerHandle>(null);
 
     const handleTimeUpdate = (time: number) => {

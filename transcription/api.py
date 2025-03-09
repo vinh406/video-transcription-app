@@ -1,6 +1,6 @@
 from ninja import Form, Router, File, Schema
 from ninja.files import UploadedFile
-from .models import MediaFile, Transcription
+from .models import MediaFile, Summary, Transcription
 import hashlib
 import tempfile
 import os
@@ -34,10 +34,12 @@ class TranscriptionResult(Schema):
     media_url: str = None
     file_name: str = None
     is_youtube: bool = False
+    summary: dict = None
+    transcription_id: str = None
 
 class SummarizeRequest(Schema):
     """Schema for summarize request body"""
-
+    transcription_id: str
     segments: List[Dict[str, Any]]
 
 class MediaFileSchema(Schema):
@@ -116,7 +118,14 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             )
             transcription.save()
 
-            return 200, {"message": "Transcription successful", "data": result, "file_name": video_title, "is_youtube": True, "media_url": youtube_url}
+            return 200, {
+                "message": "Transcription successful",
+                "data": result,
+                "file_name": video_title,
+                "is_youtube": True,
+                "media_url": youtube_url,
+                "transcription_id": str(transcription.id),
+            }
 
         finally:
             # Clean up temp file
@@ -194,7 +203,7 @@ def transcribe_audio(
         )
         transcription.save()
 
-        return 200, {"message": "Transcription successful", "data": result}
+        return 200, {"message": "Transcription successful", "data": result, "transcription_id": str(transcription.id)}
 
     except ValueError as e:
         return 400, {"message": f"Bad request: {str(e)}"}
@@ -213,10 +222,30 @@ def summarize_transcript(request, data: SummarizeRequest):
     Generate a summary from transcript segments.
     """
     try:
-        summary_result = summarize_content(data.segments)
+        transcription_id = data.transcription_id
+        if transcription_id:
+            try:
+                transcription = Transcription.objects.get(id=transcription_id)
+                
+                # Generate summary using existing functionality
+                summary_result = summarize_content(data.segments)
+
+                # Create a new Summary record
+                summary = Summary(
+                    transcription=transcription,
+                    content=summary_result["summary_data"],
+                )
+
+                summary.save()
+
+            except Transcription.DoesNotExist:
+                # If transcription not found, just return the summary without saving
+                pass
+
         return 200, {
             "message": "Summary generated successfully",
             "data": summary_result,
+            "transcription_id": transcription_id,
         }
     except ValueError as e:
         return 400, {"message": f"Bad request: {str(e)}"}
@@ -232,20 +261,17 @@ def get_user_media_history(request):
         transcription = Transcription.objects.filter(media_file=media_file).first()
         has_transcript = transcription is not None
 
-        # Check if summary exists (a summary would be in the segments field as a summary_data key)
         has_summary = False
-        if transcription and transcription.segments:
-            if (
-                isinstance(transcription.segments, dict)
-                and "summary_data" in transcription.segments
-            ):
-                has_summary = True
+        if transcription:
+            has_summary = Summary.objects.filter(transcription=transcription).exists()
 
         result.append(
             {
                 "id": str(media_file.id),
                 "file_name": media_file.file_name,
-                "mime_type": "youtube" if len(media_file.file_hash) == 11 else media_file.mime_type,
+                "mime_type": "youtube"
+                if len(media_file.file_hash) == 11
+                else media_file.mime_type,
                 "created_at": media_file.created_at.isoformat(),
                 "has_transcript": has_transcript,
                 "has_summary": has_summary,
@@ -274,13 +300,23 @@ def get_media_details(request, media_id: str):
 
         if not transcription:
             return 404, {"message": "No transcription found for this media"}
-        
+
         response_data = {
             "message": "Transcription retrieved",
             "data": transcription.segments,
             "file_name": media_file.file_name,
+            "transcription_id": str(transcription.id),
         }
-        
+
+        # Get summary if available
+        summary = None
+        if Summary.objects.filter(transcription=transcription).exists():
+            summary = Summary.objects.filter(transcription=transcription).latest(
+                "created_at"
+            )
+            response_data["summary"] = summary.content
+
+        # Check if it's a YouTube video
         is_youtube = len(media_file.file_hash) == 11
 
         if is_youtube:

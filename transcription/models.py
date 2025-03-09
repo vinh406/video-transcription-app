@@ -29,3 +29,16 @@ class Transcription(models.Model):
 
     def __str__(self):
         return f"{self.media_file.file_name} - {self.service}"
+
+class Summary(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    transcription = models.ForeignKey(
+        Transcription, on_delete=models.CASCADE, related_name="summaries"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # Store the summary data as JSON
+    content = models.JSONField()
+
+    def __str__(self):
+        return f"Summary for {self.transcription.media_file.file_name}"

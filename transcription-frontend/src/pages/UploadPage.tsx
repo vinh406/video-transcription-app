@@ -37,6 +37,7 @@ export function UploadPage() {
                     mediaUrl,
                     transcript: response.data.segments,
                     fileName: file.name,
+                    transcriptionId: response.transcription_id,
                 },
             });
         } catch (error) {
@@ -66,6 +67,7 @@ export function UploadPage() {
                     isYoutube: true,
                     transcript: response.data.segments,
                     fileName: response.file_name,
+                    transcriptionId: response.transcription_id,
                 },
             });
         } catch (error) {

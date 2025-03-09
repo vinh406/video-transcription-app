@@ -23,11 +23,17 @@ export async function transcribeFile(
     return response.json();
 }
 
-export async function summarizeTranscript(segments: unknown[]) {
+export async function summarizeTranscript(
+    segments: unknown[],
+    transcriptionId: string
+) {
     const response = await fetch(`${API_BASE_URL}/transcription/summarize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ segments }),
+        body: JSON.stringify({
+            transcription_id: transcriptionId,
+            segments: segments,
+        }),
         credentials: "include",
     });
 
@@ -37,7 +43,6 @@ export async function summarizeTranscript(segments: unknown[]) {
 
     return response.json();
 }
-
 // Auth functions
 export async function signup(
     username: string,

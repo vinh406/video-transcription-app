@@ -1,19 +1,10 @@
 import { JSX, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-
-interface SummaryPoint {
-    text: string;
-    timestamp?: number;
-}
-
-interface SummaryData {
-    overview?: string;
-    summary_points?: SummaryPoint[];
-}
+import { SummaryData } from "@/types/summary";
 
 interface SummaryPanelProps {
-    summary: string | SummaryData | null;
+    summary: SummaryData | null;
     isLoading: boolean;
     onTimestampClick?: (time: number) => void;
 }

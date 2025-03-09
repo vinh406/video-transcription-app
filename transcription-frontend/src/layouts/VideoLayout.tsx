@@ -4,12 +4,13 @@ import { SummaryPanel } from "../components/SummaryPanel";
 import { Button } from "@/components/ui/button";
 import { Segment } from "@/types/segment";
 import { MediaPlayer, MediaPlayerHandle } from "@/components/MediaPlayer";
+import { SummaryData } from "@/types/summary";
 
 interface VideoLayoutProps {
     videoUrl: string | null;
     isYoutube: boolean;
     transcript: Segment[] | null;
-    summary: string | null;
+    summary: SummaryData | null;
     onSummarize: () => void;
     isSummarizing: boolean;
 }
@@ -23,7 +24,7 @@ export default function VideoLayout({
     isSummarizing,
 }: VideoLayoutProps) {
     const [currentTime, setCurrentTime] = useState(0);
-    const [showSummary, setShowSummary] = useState(false);
+    const [showSummary, setShowSummary] = useState(summary ? true : false);
     const mediaPlayerRef = useRef<MediaPlayerHandle>(null);
 
     const handleTimeUpdate = (time: number) => {
