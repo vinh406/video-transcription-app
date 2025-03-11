@@ -3,7 +3,7 @@ import tempfile
 from pytubefix import YouTube
 
 
-def download_youtube_audio(youtube_url):
+def download_youtube(youtube_url):
     """
     Download audio from a YouTube video
 
@@ -18,22 +18,22 @@ def download_youtube_audio(youtube_url):
         yt = YouTube(youtube_url)
 
         # Get audio stream with highest quality
-        audio_stream = yt.streams.filter(only_audio=True).order_by("abr").desc().first()
+        video_stream = yt.streams.get_highest_resolution()
 
-        if not audio_stream:
+        if not video_stream:
             raise ValueError("No audio stream found for this YouTube video")
 
         # Create temp file for the audio
         temp_dir = tempfile.mkdtemp()
-        temp_file = os.path.join(temp_dir, f"{yt.video_id}.{audio_stream.subtype}")
+        temp_file = os.path.join(temp_dir, f"{yt.video_id}.{video_stream.subtype}")
 
         # Download the audio stream
-        audio_stream.download(
-            output_path=temp_dir, filename=f"{yt.video_id}.{audio_stream.subtype}"
+        video_stream.download(
+            output_path=temp_dir, filename=f"{yt.video_id}.{video_stream.subtype}"
         )
 
         # Return the file path, video title, and mime type
-        return temp_file, f"audio/{audio_stream.subtype}"
+        return temp_file, f"video/{video_stream.subtype}"
 
     except Exception as e:
         raise ValueError(f"Failed to download YouTube audio: {str(e)}")

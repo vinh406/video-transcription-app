@@ -6,7 +6,7 @@ import tempfile
 import os
 from typing import List, Dict, Any, Optional
 from ninja.security import django_auth
-from .services.youtube import download_youtube_audio, get_youtube_video_id
+from .services.youtube import download_youtube, get_youtube_video_id
 
 # Import your existing transcription functionality
 from .services.transcription import (
@@ -63,79 +63,81 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
     language = data.language
     youtube_url = data.youtube_url
 
+    temp_file_path = None
+    
+    # Get the video ID from the URL
     try:
-        temp_audio_path = None
-        
-        # Get the video ID from the URL
         video_id, video_title = get_youtube_video_id(youtube_url)
         video_id = video_id.split("v=")[-1].split("&")[0]
-        try:
-            # Check if we've already processed this YouTube video
-            media_file = None
-            try:
-                # Try to find by URL stored in file_hash field
-                media_file = MediaFile.objects.get(file_hash=video_id)
-
-                # Check if we've transcribed with this service and language
-                existing = Transcription.objects.filter(
-                    media_file=media_file, service=service, language=language
-                ).first()
-                if existing:
-                    return 200, {
-                        "message": "Found existing transcription",
-                        "data": existing.segments,
-                        "file_name": video_title,
-                    }
-            except MediaFile.DoesNotExist:
-                # Download the YouTube audio
-                temp_audio_path, mime_type = download_youtube_audio(youtube_url)
-                
-                # Create a new MediaFile for this YouTube video
-                media_file = MediaFile(
-                    file_name=video_title,
-                    file_hash=video_id,
-                    mime_type=mime_type,
-                    user=request.user if request.user.is_authenticated else None,
-                )
-                media_file.save()
-
-            # Perform transcription based on service
-            result = None
-
-            if service == "google":
-                result = transcribe_google_api(temp_audio_path, language=language)
-            elif service == "elevenlabs":
-                result = transcribe_elevenlabs_api(temp_audio_path, language=language)
-            else:  # whisperx
-                result = transcribe_whisperx(temp_audio_path, language=language)
-
-            # Save the transcription result
-            transcription = Transcription(
-                media_file=media_file,
-                service=service,
-                language=language,
-                segments=result,
-            )
-            transcription.save()
-
-            return 200, {
-                "message": "Transcription successful",
-                "data": result,
-                "file_name": video_title,
-                "is_youtube": True,
-                "media_url": youtube_url,
-                "transcription_id": str(transcription.id),
-            }
-
-        finally:
-            # Clean up temp file
-            if temp_audio_path and os.path.exists(temp_audio_path):
-                os.remove(temp_audio_path)
-
-    except ValueError as e:
-        return 400, {"message": f"Bad request: {str(e)}"}
+        temp_file_path, mime_type = download_youtube(youtube_url)
     except Exception as e:
-        return 500, {"message": f"Server error: {str(e)}"}
+        return 400, {"message": f"Invalid YouTube URL: {str(e)}"}
+    try:
+        # Check if we've already processed this YouTube video
+        media_file = None
+        try:
+            # Try to find by URL stored in file_hash field
+            media_file = MediaFile.objects.get(file_hash=video_id)
+
+            # Check if we've transcribed with this service and language
+            existing = Transcription.objects.filter(
+                media_file=media_file, service=service, language=language
+            ).first()
+            if existing:
+                return 200, {
+                    "message": "Found existing transcription",
+                    "data": existing.segments,
+                    "file_name": video_title,
+                }
+        except MediaFile.DoesNotExist:            
+            # Create a new MediaFile for this YouTube video
+            media_file = MediaFile(
+                file_name=video_title,
+                file_hash=video_id,
+                mime_type=mime_type,
+                user=request.user if request.user.is_authenticated else None,
+            )
+            
+            media_file.file.save(
+                f"youtube_{video_id}.{mime_type.split('/')[-1]}",
+                open(temp_file_path, "rb"),
+                save=False,
+            )
+            
+            media_file.save()
+
+        # Perform transcription based on service
+        result = None
+
+        if service == "google":
+            result = transcribe_google_api(temp_file_path, language=language)
+        elif service == "elevenlabs":
+            result = transcribe_elevenlabs_api(temp_file_path, language=language)
+        else:  # whisperx
+            result = transcribe_whisperx(temp_file_path, language=language)
+
+        # Save the transcription result
+        transcription = Transcription(
+            media_file=media_file,
+            service=service,
+            language=language,
+            segments=result,
+        )
+        transcription.save()
+
+        return 200, {
+            "message": "Transcription successful",
+            "data": result,
+            "file_name": video_title,
+            "is_youtube": True,
+            "media_url": youtube_url,
+            "transcription_id": str(transcription.id),
+        }
+
+    finally:
+        # Clean up temp file
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
 
 @api.post(
     "/transcribe",
@@ -204,9 +206,6 @@ def transcribe_audio(
         transcription.save()
 
         return 200, {"message": "Transcription successful", "data": result, "transcription_id": str(transcription.id)}
-
-    except ValueError as e:
-        return 400, {"message": f"Bad request: {str(e)}"}
     finally:
         # Clean up temp file
         if os.path.exists(temp_audio.name):
@@ -221,34 +220,31 @@ def summarize_transcript(request, data: SummarizeRequest):
     """
     Generate a summary from transcript segments.
     """
-    try:
-        transcription_id = data.transcription_id
-        if transcription_id:
-            try:
-                transcription = Transcription.objects.get(id=transcription_id)
-                
-                # Generate summary using existing functionality
-                summary_result = summarize_content(data.segments)
+    transcription_id = data.transcription_id
+    if transcription_id:
+        try:
+            transcription = Transcription.objects.get(id=transcription_id)
+            
+            # Generate summary using existing functionality
+            summary_result = summarize_content(data.segments)
 
-                # Create a new Summary record
-                summary = Summary(
-                    transcription=transcription,
-                    content=summary_result["summary_data"],
-                )
+            # Create a new Summary record
+            summary = Summary(
+                transcription=transcription,
+                content=summary_result["summary_data"],
+            )
 
-                summary.save()
+            summary.save()
 
-            except Transcription.DoesNotExist:
-                # If transcription not found, just return the summary without saving
-                pass
+        except Transcription.DoesNotExist:
+            # If transcription not found, just return the summary without saving
+            pass
 
-        return 200, {
-            "message": "Summary generated successfully",
-            "data": summary_result,
-            "transcription_id": transcription_id,
-        }
-    except ValueError as e:
-        return 400, {"message": f"Bad request: {str(e)}"}
+    return 200, {
+        "message": "Summary generated successfully",
+        "data": summary_result,
+        "transcription_id": transcription_id,
+    }
 
 @api.get("/media/history", response={200: List[MediaFileSchema]}, auth=django_auth)
 def get_user_media_history(request):

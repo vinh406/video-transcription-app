@@ -13,7 +13,7 @@ dependencies = [
     "elevenlabs>=1.52.0",
     "flask>=3.1.0",
     "flask-cors>=5.0.0",
-    "google-genai>=1.4.0",
+    "google-genai>=1.5.0",
     "markupsafe==2.1.5",
     "psycopg2>=2.9.10",
     "python-dotenv>=1.0.1",
