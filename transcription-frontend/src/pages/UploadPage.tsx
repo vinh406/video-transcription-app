@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { FileUpload } from "@/components/FileUpload";
 import { MediaHistory } from "@/components/MediaHistory";
 import { transcribeFile, transcribeYouTube } from "@/lib/api";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogOut, User } from "lucide-react";
@@ -42,6 +41,7 @@ export function UploadPage() {
             });
         } catch (error) {
             console.error("Transcription failed:", error);
+        } finally {
             setIsTranscribing(false);
         }
     };
@@ -72,6 +72,7 @@ export function UploadPage() {
             });
         } catch (error) {
             console.error("YouTube transcription failed:", error);
+        } finally {
             setIsTranscribing(false);
         }
     };
@@ -112,24 +113,41 @@ export function UploadPage() {
                 )}
             </div>
 
-            <Tabs defaultValue="upload" className="mb-8">
-                <TabsList className="mb-4">
-                    <TabsTrigger value="upload">Upload New</TabsTrigger>
-                    <TabsTrigger value="history">Media History</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="upload" className="mt-4">
+            <div className="space-y-8">
+                <div className="border rounded-lg p-6 bg-card">
+                    <h2 className="text-xl font-medium mb-4">Upload Media</h2>
                     <FileUpload
                         onUpload={handleFileUpload}
                         isLoading={isTranscribing}
                         onYoutubeUpload={handleYoutubeUpload}
                     />
-                </TabsContent>
+                </div>
 
-                <TabsContent value="history" className="mt-4">
-                    <MediaHistory />
-                </TabsContent>
-            </Tabs>
+                <div className="border rounded-lg p-6">
+                    <>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-medium">
+                                Recent Media
+                            </h2>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate("/history")}
+                                className="flex items-center gap-1"
+                            >
+                                View All
+                            </Button>
+                        </div>
+                        {user ? (
+                            <MediaHistory limitCount={3} showTitle={false} />
+                        ) : (
+                            <p className="text-gray-500">
+                                Please login to view your media history.
+                            </p>
+                        )}
+                    </>
+                </div>
+            </div>
         </div>
     );
 }

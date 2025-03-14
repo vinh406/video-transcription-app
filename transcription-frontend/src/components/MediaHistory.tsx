@@ -1,4 +1,3 @@
-// src/components/MediaHistory.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMediaHistory, getMediaDetails } from "@/lib/api";
@@ -23,7 +22,15 @@ interface MediaItem {
     service: string | null;
 }
 
-export function MediaHistory() {
+interface MediaHistoryProps {
+    limitCount?: number;
+    showTitle?: boolean;
+}
+
+export function MediaHistory({
+    limitCount,
+    showTitle = true,
+}: MediaHistoryProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
     const navigate = useNavigate();
@@ -47,7 +54,11 @@ export function MediaHistory() {
                     return;
                 }
 
-                setMediaItems(response);
+                // Apply limit if provided
+                const items = limitCount
+                    ? response.slice(0, limitCount)
+                    : response;
+                setMediaItems(items);
             } catch (error) {
                 console.error("Failed to fetch media history", error);
                 setMediaItems([]);
@@ -57,7 +68,7 @@ export function MediaHistory() {
         };
 
         fetchMediaHistory();
-    }, [user, navigate]);
+    }, [user, navigate, limitCount]);
 
     const handleMediaItemClick = async (mediaItem: MediaItem) => {
         if (!mediaItem.has_transcript) return;
@@ -117,7 +128,9 @@ export function MediaHistory() {
 
     return (
         <div className="space-y-4">
-            <h2 className="text-xl font-medium">Your Media History</h2>
+            {showTitle && (
+                <h2 className="text-xl font-medium">Your Media History</h2>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {mediaItems.map((item) => (
                     <div
