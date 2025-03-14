@@ -84,7 +84,7 @@ export function TranscriptPanel({
                             </button>
 
                             <span className="px-2 py-0.5 bg-secondary text-secondary-foreground text-xs rounded-full">
-                                Speaker {segment.speaker || "Unknown"}
+                                {segment.speaker || "Unknown"}
                             </span>
                         </div>
 

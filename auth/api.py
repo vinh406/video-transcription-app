@@ -63,8 +63,6 @@ def login_user(request, data: LoginSchema):
     user = authenticate(request, username=data.username, password=data.password)
     if user is not None:
         login(request, user)
-        print(f"User authenticated: {user.username}")
-        print(f"Session ID: {request.session.session_key}")
         return 200, {
             "message": "Login successful",
             "user": {"id": user.id, "username": user.username, "email": user.email},

@@ -53,7 +53,7 @@ export function ViewPage() {
                 transcript,
                 state.transcriptionId
             );
-            setSummary(response.data.summary_data);
+            setSummary(response.summary);
         } catch (error) {
             console.error("Summarization failed:", error);
         } finally {

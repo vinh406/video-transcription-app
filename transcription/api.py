@@ -1,58 +1,29 @@
-from ninja import Form, Router, File, Schema
+from ninja import Form, Router, File
 from ninja.files import UploadedFile
 from .models import MediaFile, Summary, Transcription
 import hashlib
 import tempfile
 import os
-from typing import List, Dict, Any, Optional
+from typing import List
 from ninja.security import django_auth
-from .services.youtube import download_youtube, get_youtube_video_id
-
-# Import your existing transcription functionality
-from .services.transcription import (
+from .services import (
+    download_youtube,
+    get_youtube_video_id,
     transcribe_google_api,
-    transcribe_elevenlabs_api,
     transcribe_whisperx,
+    transcribe_elevenlabs_api,
     summarize_content,
+)
+from .schemas import (
+    TranscriptionRequest,
+    YouTubeTranscriptionRequest,
+    TranscriptionResult,
+    ErrorResponse,
+    SummarizeRequest,
+    MediaFileSchema,
 )
 
 api = Router()
-
-class YouTubeTranscriptionRequest(Schema):
-    youtube_url: str
-    service: str
-    language: str = "auto"
-
-class TranscriptionRequest(Schema):
-    service: str
-    language: str = "auto"
-
-
-class TranscriptionResult(Schema):
-    message: str
-    data: dict = None
-    media_url: str = None
-    file_name: str = None
-    is_youtube: bool = False
-    summary: dict = None
-    transcription_id: str = None
-
-class SummarizeRequest(Schema):
-    """Schema for summarize request body"""
-    transcription_id: str
-    segments: List[Dict[str, Any]]
-
-class MediaFileSchema(Schema):
-    id: str
-    file_name: str
-    mime_type: str
-    created_at: str
-    has_transcript: bool
-    has_summary: bool
-    service: Optional[str] = None
-
-class ErrorResponse(Schema):
-    message: str
 
 @api.post(
     "/transcribe-youtube",
@@ -64,7 +35,7 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
     youtube_url = data.youtube_url
 
     temp_file_path = None
-    
+
     # Get the video ID from the URL
     try:
         video_id, video_title = get_youtube_video_id(youtube_url)
@@ -89,7 +60,7 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
                     "data": existing.segments,
                     "file_name": video_title,
                 }
-        except MediaFile.DoesNotExist:            
+        except MediaFile.DoesNotExist:
             # Create a new MediaFile for this YouTube video
             media_file = MediaFile(
                 file_name=video_title,
@@ -97,13 +68,13 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
                 mime_type=mime_type,
                 user=request.user if request.user.is_authenticated else None,
             )
-            
+
             media_file.file.save(
                 f"youtube_{video_id}.{mime_type.split('/')[-1]}",
                 open(temp_file_path, "rb"),
                 save=False,
             )
-            
+
             media_file.save()
 
         # Perform transcription based on service
@@ -138,6 +109,7 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
         # Clean up temp file
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
+
 
 @api.post(
     "/transcribe",
@@ -205,7 +177,11 @@ def transcribe_audio(
         )
         transcription.save()
 
-        return 200, {"message": "Transcription successful", "data": result, "transcription_id": str(transcription.id)}
+        return 200, {
+            "message": "Transcription successful",
+            "data": result,
+            "transcription_id": str(transcription.id),
+        }
     finally:
         # Clean up temp file
         if os.path.exists(temp_audio.name):
@@ -224,14 +200,14 @@ def summarize_transcript(request, data: SummarizeRequest):
     if transcription_id:
         try:
             transcription = Transcription.objects.get(id=transcription_id)
-            
+
             # Generate summary using existing functionality
             summary_result = summarize_content(data.segments)
 
             # Create a new Summary record
             summary = Summary(
                 transcription=transcription,
-                content=summary_result["summary_data"],
+                content=summary_result,
             )
 
             summary.save()
@@ -242,9 +218,10 @@ def summarize_transcript(request, data: SummarizeRequest):
 
     return 200, {
         "message": "Summary generated successfully",
-        "data": summary_result,
+        "summary": summary_result,
         "transcription_id": transcription_id,
     }
+
 
 @api.get("/media/history", response={200: List[MediaFileSchema]}, auth=django_auth)
 def get_user_media_history(request):
@@ -276,6 +253,7 @@ def get_user_media_history(request):
         )
 
     return result
+
 
 @api.get(
     "/media/{media_id}",
