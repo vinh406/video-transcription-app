@@ -75,8 +75,6 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
                 save=False,
             )
 
-            media_file.save()
-
         # Perform transcription based on service
         result = None
 
@@ -86,6 +84,8 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             result = transcribe_elevenlabs_api(temp_file_path, language=language)
         else:  # whisperx
             result = transcribe_whisperx(temp_file_path, language=language)
+        
+        media_file.save()
 
         # Save the transcription result
         transcription = Transcription(

@@ -51,8 +51,11 @@ def transcribe_google_api(file_path, language=None):
     The 'speaker' field must be a string indicating the speaker's name or in the format 'Speaker X'.
     """
     prompt = (
-        "Transcribe the following audio file with correct timestamps and language code."
+        "Transcribe the following audio file with correct timestamps"
     )
+    
+    if language is not None and language != "auto":
+        prompt += f" and translate it to {language}."
 
     # Generate content
     response = google_client.models.generate_content(
@@ -138,6 +141,7 @@ def summarize_content(transcript_segments):
     system_instruction = """
     You are an AI assistant specialized in summarizing transcribed content.
     Provide a summary that captures the main points of the transcript in JSON format.
+    The summary should be in the same language as the transcript.
     Return a list of summary points, where each point includes:
     1. "text" - The summary point text without timestamp
     2. "timestamp" - The timestamp in seconds where this information appears

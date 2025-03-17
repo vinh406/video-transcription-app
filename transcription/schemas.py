@@ -14,7 +14,7 @@ class Segment(Schema):
     start: float
     end: float
     text: str
-    speaker: str
+    speaker: Optional[str] = None
     words: Optional[List[Word]] = None
 
 class GeminiSegment(Schema):
@@ -25,6 +25,7 @@ class GeminiSegment(Schema):
 
 class SegmentResponseGemini(Schema):
     segments: List[GeminiSegment]
+    finished: bool
 
 
 class SegmentResponse(Schema):

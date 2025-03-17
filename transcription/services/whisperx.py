@@ -8,7 +8,9 @@ load_dotenv()
 
 # Set device for WhisperX
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-HF_TOKEN = os.getenv("HF_TOKEN", "HF_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    raise ValueError("Hugging Face token not found. Please set HF_TOKEN in .env file.")
 
 # Initialize clients
 whisperx_model = None
@@ -45,29 +47,27 @@ def transcribe_whisperx(file_path, language=None):
         model = load_whisperx_model()
         result = model.transcribe(audio, batch_size=4, language=lang_param)
 
-        # Use detected language
-        detected_lang = result["language"]
+        # # Use detected language
+        # detected_lang = result["language"]
 
-        # Align timestamps
-        model_a, metadata = whisperx.load_align_model(
-            language_code=detected_lang, device=DEVICE
-        )
+        # # Align timestamps
+        # model_a, metadata = whisperx.load_align_model(
+        #     language_code=detected_lang, device=DEVICE
+        # )
 
-        result_aligned = whisperx.align(
-            result["segments"],
-            model_a,
-            metadata,
-            audio,
-            DEVICE,
-            return_char_alignments=False,
-        )
+        # result = whisperx.align(
+        #     result["segments"],
+        #     model_a,
+        #     metadata,
+        #     audio,
+        #     DEVICE,
+        #     return_char_alignments=False,
+        # )
 
         # Diarization (identify speakers)
         diarize = load_diarize_model()
         diarize_segments = diarize(audio)
-        result_with_speakers = whisperx.assign_word_speakers(
-            diarize_segments, result_aligned
-        )
+        result_with_speakers = whisperx.assign_word_speakers(diarize_segments, result)
 
         # Clean up resources
         import gc
