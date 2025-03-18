@@ -1,9 +1,9 @@
-import json
 import os
 import time
 import google.genai.types as types
 from google import genai
-from ..schemas import SegmentResponseGemini, SummaryData
+import csv
+from io import StringIO
 
 google_client = None
 
@@ -14,7 +14,7 @@ if os.getenv("GOOGLE_API_KEY"):
 else:
     print("Warning: GOOGLE_API_KEY not found in environment variables")
 
-model_name = "models/gemini-2.0-pro-exp-02-05"
+model_name = "models/gemini-2.0-flash-thinking-exp"
 
 # File upload function for Google API
 def upload_video(video_file_name):
@@ -34,7 +34,7 @@ def upload_video(video_file_name):
 
 # Transcription functions
 def transcribe_google_api(file_path, language=None):
-    """Transcribe audio using Google Gemini API"""
+    """Transcribe audio using Google Gemini API with TSV output format"""
     if google_client is None:
         raise ValueError(
             "Google client not initialized. Please set GOOGLE_API_KEY in .env file."
@@ -44,16 +44,18 @@ def transcribe_google_api(file_path, language=None):
     video = upload_video(file_path)
     system_instructions = """
     You are a transcription assistant. Your task is to transcribe the audio file provided to you.
-    Your response must be a JSON object containing 'segments' field.
-    The 'segments' field must be a list of objects with 'start', 'end', 'text' and 'speaker' fields.
-    The 'start' and 'end' must follow the format of MM:SS.mmm.
-    Timestamps should have milli-second level accuracy.
-    The 'speaker' field must be a string indicating the speaker's name or in the format 'Speaker X'.
-    """
-    prompt = (
-        "Transcribe the following audio file with correct timestamps"
-    )
+    Return your response as TSV (Tab-Separated Values) with the following columns:
+    start\tend\ttext\tspeaker
     
+    The 'start' and 'end' columns must follow the format of MM:SS.mmm.
+    Timestamps should have milli-second level accuracy.
+    The 'speaker' column must indicate the speaker's name or use the format 'Speaker X'.
+    DO NOT include a header row.
+    Each row must represent one segment.
+    """
+
+    prompt = "Transcribe the following audio file with correct timestamps"
+
     if language is not None and language != "auto":
         prompt += f" and translate it to {language}."
 
@@ -63,29 +65,55 @@ def transcribe_google_api(file_path, language=None):
         contents=[video, prompt],
         config=types.GenerateContentConfig(
             system_instruction=system_instructions,
-            response_mime_type="application/json",
-            response_schema=SegmentResponseGemini,
+            # Remove response_schema and mime_type since we're using TSV
         ),
     )
+    if response.text is None:
+        raise ValueError(f"Transcription failed: {response}")
 
     text = response.text.strip()
+    
+    print(f"Transcription response: {text}")
 
     try:
-        result = json.loads(text)
+        # Parse TSV response using csv module
 
-        # Convert timestamps from MM:SS.mmm format to float seconds
-        if "segments" in result:
-            for segment in result["segments"]:
-                if "start" in segment and isinstance(segment["start"], str):
-                    segment["start"] = parse_timestamp(segment["start"])
-                if "end" in segment and isinstance(segment["end"], str):
-                    segment["end"] = parse_timestamp(segment["end"])
+        segments = []
+        csv_reader = csv.reader(StringIO(text), delimiter="\t")
 
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Error decoding JSON from GenAI API: {response.text}") from e
+        for row in csv_reader:
+            if not row:  # Skip empty rows
+                continue
+
+            # Handle cases with fewer than expected columns
+            if len(row) >= 3:  # At minimum we need start, end, and text
+                start_str = row[0]
+                end_str = row[1]
+                text_content = row[2]
+
+                # Use default speaker if missing
+                speaker = (
+                    row[3] if len(row) >= 4 and row[3].strip() else "Unknown"
+                )
+
+                try:
+                    segment = {
+                        "start": parse_timestamp(start_str),
+                        "end": parse_timestamp(end_str),
+                        "text": text_content,
+                        "speaker": speaker,
+                    }
+                    segments.append(segment)
+                except ValueError as ve:
+                    print(f"Warning: Skipping row due to timestamp parsing error: {ve}")
+                    continue
+
+        result = {"segments": segments}
+
+    except Exception as e:
+        raise ValueError(f"Error parsing TSV from GenAI API: {text}") from e
 
     return result
-
 
 def parse_timestamp(timestamp_str):
     """
@@ -114,7 +142,7 @@ def parse_timestamp(timestamp_str):
 
 
 def summarize_content(transcript_segments):
-    """Generate a summary of the transcribed content using Gemini API with timestamp references"""
+    """Generate a summary of the transcribed content using Gemini API with TSV format"""
     if google_client is None:
         raise ValueError(
             "Google client not initialized. Please set GOOGLE_API_KEY in .env file."
@@ -131,32 +159,22 @@ def summarize_content(transcript_segments):
     Please provide a summary of the following transcript:
     
     {formatted_transcript}
-    
-    For each key point in your summary, include a reference to the timestamp (in seconds) 
-    where this information appears in the transcript. Format each point as:
-    
-    - Point summary text [timestamp]
     """
 
     system_instruction = """
     You are an AI assistant specialized in summarizing transcribed content.
-    Provide a summary that captures the main points of the transcript in JSON format.
-    The summary should be in the same language as the transcript.
-    Return a list of summary points, where each point includes:
-    1. "text" - The summary point text without timestamp
-    2. "timestamp" - The timestamp in seconds where this information appears
+    Provide a summary that captures the main points of the transcript in TSV format.
     
-    Format your response as valid JSON with the following structure:
-    {
-      "summary_points": [
-        {"text": "First main point", "timestamp": 45.2},
-        {"text": "Second main point", "timestamp": 120.5},
-        ...
-      ],
-      "overview": "Overall summary of the content."
-    }
-
-    Ensure timestamps are provided as numbers, not strings.
+    First, provide a single row with the overall summary prefixed with "OVERVIEW:".
+    Then, provide key points, one per row, with each row having two tab-separated columns:
+    1. The summary point text
+    2. The timestamp in seconds where this information appears (as a decimal number, not a string)
+    
+    Format:
+    OVERVIEW:\t<overview text>
+    <point text>\t<timestamp>
+    <point text>\t<timestamp>
+    ...
     """
 
     try:
@@ -164,21 +182,47 @@ def summarize_content(transcript_segments):
             model=model_name,
             contents=summarization_prompt,
             config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                response_schema=SummaryData,
+                system_instruction=system_instruction, max_output_tokens=64000
             ),
         )
 
         text_response = response.text.strip()
 
         try:
-            # Parse the JSON response
-            summary_data = json.loads(text_response)
+            # Parse the TSV response using CSV reader
+            summary_data = {"summary_points": []}
+            csv_reader = csv.reader(StringIO(text_response), delimiter="\t")
+
+            for row in csv_reader:
+                if not row:  # Skip empty rows
+                    continue
+
+                # Handle the overview row
+                if row[0].startswith("OVERVIEW:"):
+                    overview = row[0].replace("OVERVIEW:", "").strip()
+                    # If there's a value in the next column, use it
+                    if len(row) > 1 and row[1].strip():
+                        overview = row[1].strip()
+                    summary_data["overview"] = overview
+                # Handle summary points
+                elif len(row) >= 2:
+                    text = row[0].strip()
+                    timestamp_str = row[1].strip()
+
+                    try:
+                        timestamp = float(timestamp_str)
+                        summary_data["summary_points"].append(
+                            {"text": text, "timestamp": timestamp}
+                        )
+                    except ValueError:
+                        # If timestamp can't be converted to float, use text only
+                        summary_data["summary_points"].append({"text": text})
+
             return summary_data
-        except json.JSONDecodeError as e:
+
+        except Exception as e:
             raise ValueError(
-                f"Error decoding JSON from GenAI API: {text_response}"
+                f"Error parsing TSV from GenAI API: {text_response}"
             ) from e
 
     except Exception as e:
