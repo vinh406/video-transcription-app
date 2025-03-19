@@ -5,8 +5,17 @@ import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { HistoryPage } from "./pages/HistoryPage";
+import { useEffect } from "react";
+import { fetchCsrfToken } from "./lib/csrfToken";
 
 export default function App() {
+    useEffect(() => {
+        // Fetch CSRF token when app starts
+        fetchCsrfToken().catch((error) =>
+            console.error("Failed to fetch CSRF token:", error)
+        );
+    }, []);
+
     return (
         <AuthProvider>
             <BrowserRouter>

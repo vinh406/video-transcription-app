@@ -1,4 +1,21 @@
-export const API_BASE_URL = "http://localhost:8000/api";
+export const API_BASE_URL = "http://127.0.0.1:8000/api";
+import { fetchCsrfToken } from "./csrfToken";
+
+// Add this to handle requests that need CSRF protection
+async function fetchWithCsrf(url: string, options: RequestInit = {}) {
+    const token = await fetchCsrfToken();
+
+    const headers = {
+        ...options.headers,
+        "X-CSRFToken": token,
+    };
+
+    return fetch(url, {
+        ...options,
+        headers,
+        credentials: "include",
+    });
+}
 
 export async function transcribeFile(
     file: File,
@@ -10,7 +27,7 @@ export async function transcribeFile(
     formData.append("service", service);
     formData.append("language", language);
 
-    const response = await fetch(`${API_BASE_URL}/transcription/transcribe`, {
+    const response = await fetchWithCsrf(`${API_BASE_URL}/transcription/transcribe`, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -27,7 +44,7 @@ export async function summarizeTranscript(
     segments: unknown[],
     transcriptionId: string
 ) {
-    const response = await fetch(`${API_BASE_URL}/transcription/summarize`, {
+    const response = await fetchWithCsrf(`${API_BASE_URL}/transcription/summarize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -49,7 +66,7 @@ export async function signup(
     email: string,
     password: string
 ) {
-    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+    const response = await fetchWithCsrf(`${API_BASE_URL}/auth/signup`, {
         method: "POST",
         body: JSON.stringify({ username, email, password }),
         credentials: "include",
@@ -60,7 +77,7 @@ export async function signup(
 }
 
 export async function login(username: string, password: string) {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const response = await fetchWithCsrf(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -71,7 +88,7 @@ export async function login(username: string, password: string) {
 }
 
 export async function logout() {
-    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+    const response = await fetchWithCsrf(`${API_BASE_URL}/auth/logout`, {
         method: "POST",
         credentials: "include",
     });
@@ -81,7 +98,7 @@ export async function logout() {
 }
 
 export async function getCurrentUser() {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    const response = await fetchWithCsrf(`${API_BASE_URL}/auth/me`, {
         method: "GET",
         credentials: "include",
     });
@@ -97,7 +114,7 @@ export async function getCurrentUser() {
 
 // Media history
 export async function getMediaHistory() {
-    const response = await fetch(
+    const response = await fetchWithCsrf(
         `${API_BASE_URL}/transcription/history`, // Updated endpoint
         {
             method: "GET",
@@ -108,7 +125,7 @@ export async function getMediaHistory() {
 }
 
 export async function getMediaDetails(transcriptionId: string) {
-    const response = await fetch(
+    const response = await fetchWithCsrf(
         `${API_BASE_URL}/transcription/${transcriptionId}`, // Updated endpoint
         {
             method: "GET",
@@ -122,7 +139,7 @@ export async function transcribeYouTube(
     service: string,
     language: string
 ) {
-    const response = await fetch(
+    const response = await fetchWithCsrf(
         `${API_BASE_URL}/transcription/transcribe-youtube`,
         {
             method: "POST",
