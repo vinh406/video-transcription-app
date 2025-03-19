@@ -161,3 +161,44 @@ export async function transcribeYouTube(
 
     return response.json();
 }
+
+export async function deleteTranscription(transcriptionId: string) {
+    const response = await fetchWithCsrf(
+        `${API_BASE_URL}/transcription/${transcriptionId}`,
+        {
+            method: "DELETE",
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Delete failed with status: ${response.status}`);
+    }
+
+    return response.json();
+}
+
+export async function regenerateTranscription(
+    transcriptionId: string,
+    service: string,
+    language: string
+) {
+    const response = await fetchWithCsrf(
+        `${API_BASE_URL}/transcription/${transcriptionId}/regenerate`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                service,
+                language,
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Regeneration failed with status: ${response.status}`);
+    }
+
+    return response.json();
+}

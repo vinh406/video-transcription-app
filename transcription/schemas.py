@@ -81,3 +81,9 @@ class TranscriptionListSchema(Schema):
 
 class ErrorResponse(Schema):
     message: str
+
+class RegenerateTranscriptionRequest(Schema):
+    """Schema for regenerating a transcription with different service/language."""
+
+    service: str
+    language: str

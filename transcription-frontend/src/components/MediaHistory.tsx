@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getMediaHistory, getMediaDetails } from "@/lib/api";
+import {
+    getMediaHistory,
+    getMediaDetails,
+    deleteTranscription,
+    regenerateTranscription,
+} from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { getLanguageName } from "@/lib/languages";
-import { getServiceName } from "@/lib/services";
+import { getLanguageName, languageOptions } from "@/lib/languages";
+import { getServiceName, serviceOptions } from "@/lib/services";
 
 import {
     Loader2,
@@ -12,7 +17,38 @@ import {
     Youtube,
     FileText,
     Globe,
+    MoreVertical,
+    RefreshCw,
+    Trash2,
 } from "lucide-react";
+
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface MediaItem {
     id: string; // transcription ID
@@ -38,6 +74,12 @@ export function MediaHistory({
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
     const navigate = useNavigate();
     const { user } = useAuth();
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+    const [regenerateService, setRegenerateService] = useState("whisperx");
+    const [regenerateLanguage, setRegenerateLanguage] = useState("auto");
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
         if (!user) {
@@ -69,6 +111,7 @@ export function MediaHistory({
                 setIsLoading(false);
             }
         };
+
 
         fetchMediaHistory();
     }, [user, navigate, limitCount]);
@@ -107,6 +150,88 @@ export function MediaHistory({
         }
     };
 
+    const handleOpenDeleteDialog = (
+        e: React.MouseEvent,
+        item: MediaItem
+    ) => {
+        e.stopPropagation(); // Prevent card click
+        setSelectedItem(item);
+        setShowDeleteDialog(true);
+    };
+
+    const handleOpenRegenerateDialog = (
+        e: React.MouseEvent,
+        item: MediaItem
+    ) => {
+        e.stopPropagation(); // Prevent card click
+        setSelectedItem(item);
+        setRegenerateService("whisperx"); // Default service
+        setRegenerateLanguage("auto"); // Default language
+        setShowRegenerateDialog(true);
+    };
+
+    const handleDelete = async () => {
+        if (!selectedItem) return;
+
+        setIsProcessing(true);
+        try {
+            await deleteTranscription(selectedItem.id);
+            // Remove item from list
+            setMediaItems((items) =>
+                items.filter((i) => i.id !== selectedItem.id)
+            );
+            toast.success("Transcription deleted successfully");
+        } catch (error) {
+            console.error("Failed to delete transcription", error);
+            toast.error("Failed to delete transcription");
+        } finally {
+            setIsProcessing(false);
+            setShowDeleteDialog(false);
+            setSelectedItem(null);
+        }
+    };
+
+    const handleRegenerate = async () => {
+        if (!selectedItem) return;
+
+        setIsProcessing(true);
+        try {
+            const response = await regenerateTranscription(
+                selectedItem.id,
+                regenerateService,
+                regenerateLanguage
+            );
+
+            // Navigate to view page with the new transcription data
+            navigate("/view", {
+                state: {
+                    mediaType:
+                        selectedItem.mime_type === "youtube"
+                            ? "youtube"
+                            : selectedItem.mime_type.startsWith("audio/")
+                            ? "audio"
+                            : "video",
+                    mediaUrl: response.media_url,
+                    isYoutube: response.is_youtube,
+                    transcript: response.data.segments,
+                    fileName: response.file_name,
+                    transcriptionId: response.transcription_id,
+                    summary: response.summary,
+                },
+            });
+
+            toast.success("Transcription regenerated successfully");
+        } catch (error) {
+            console.error("Failed to regenerate transcription", error);
+            toast.error("Failed to regenerate transcription");
+        } finally {
+            setIsProcessing(false);
+            setShowRegenerateDialog(false);
+            setSelectedItem(null);
+        }
+    };
+
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center p-8">
@@ -140,8 +265,8 @@ export function MediaHistory({
                         className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:shadow-lg overflow-hidden cursor-pointer"
                         onClick={() => handleMediaItemClick(item)}
                     >
-                        {/* Card header with icon and service badge */}
-                        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                        {/* Card header with icon, service badge and options menu */}
+                        <div className="flex items-center justify-between pl-4 pr-2 py-2 border-b border-gray-100 dark:border-gray-700">
                             <div className="flex items-center gap-3">
                                 {/* Media type icon */}
                                 <div
@@ -181,28 +306,68 @@ export function MediaHistory({
                                 </div>
                             </div>
 
-                            {/* Date in more prominent position */}
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {new Date(item.created_at).toLocaleDateString()}
+                            <div className="flex items-center gap-2">
+                                {/* Date */}
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(
+                                        item.created_at
+                                    ).toLocaleDateString()}
+                                </div>
+
+                                {/* Options menu - stop propagation to prevent card click */}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger
+                                        asChild
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0"
+                                        >
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                            onClick={(e) =>
+                                                handleOpenRegenerateDialog(
+                                                    e,
+                                                    item
+                                                )
+                                            }
+                                            className="cursor-pointer"
+                                        >
+                                            <RefreshCw className="mr-2 h-4 w-4" />
+                                            Regenerate
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            onClick={(e) =>
+                                                handleOpenDeleteDialog(e, item)
+                                            }
+                                            className="cursor-pointer text-destructive focus:text-destructive"
+                                        >
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Delete
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </div>
 
-                        {/* Card content */}
+                        {/* Rest of the card content remains the same */}
                         <div className="flex-1 p-4">
-                            {/* Title with better spacing */}
                             <h3 className="font-medium text-lg mb-3 line-clamp-2">
                                 {item.file_name}
                             </h3>
 
-                            {/* Tags in a more organized layout */}
                             <div className="flex flex-wrap gap-2 mt-auto">
-                                {/* Language badge */}
                                 <div className="inline-flex items-center text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">
                                     <Globe className="w-3 h-3 mr-1" />
                                     {getLanguageName(item.language)}
                                 </div>
 
-                                {/* Summary badge if exists */}
                                 {item.has_summary && (
                                     <div className="inline-flex items-center text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded-md">
                                         <FileText className="w-3 h-3 mr-1" />
@@ -212,11 +377,136 @@ export function MediaHistory({
                             </div>
                         </div>
 
-                        {/* Subtle hover effect */}
-                        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                 ))}
             </div>
+
+            {/* Delete confirmation dialog */}
+            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Transcription</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this transcription?
+                            This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowDeleteDialog(false)}
+                            disabled={isProcessing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleDelete}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                                <Trash2 className="h-4 w-4 mr-2" />
+                            )}
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Regenerate dialog with service and language options */}
+            <Dialog
+                open={showRegenerateDialog}
+                onOpenChange={setShowRegenerateDialog}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Regenerate Transcription</DialogTitle>
+                        <DialogDescription>
+                            Select new service and language settings to
+                            regenerate this transcription.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <label
+                                htmlFor="service"
+                                className="text-sm font-medium"
+                            >
+                                Transcription Service
+                            </label>
+                            <Select
+                                value={regenerateService}
+                                onValueChange={setRegenerateService}
+                            >
+                                <SelectTrigger id="service">
+                                    <SelectValue placeholder="Select service" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {serviceOptions.map((option) => (
+                                        <SelectItem
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <label
+                                htmlFor="language"
+                                className="text-sm font-medium"
+                            >
+                                Language
+                            </label>
+                            <Select
+                                value={regenerateLanguage}
+                                onValueChange={setRegenerateLanguage}
+                            >
+                                <SelectTrigger id="language">
+                                    <SelectValue placeholder="Select language" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {languageOptions.map((option) => (
+                                        <SelectItem
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowRegenerateDialog(false)}
+                            disabled={isProcessing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleRegenerate}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                            )}
+                            Regenerate
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

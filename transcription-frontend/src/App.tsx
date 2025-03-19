@@ -7,6 +7,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { HistoryPage } from "./pages/HistoryPage";
 import { useEffect } from "react";
 import { fetchCsrfToken } from "./lib/csrfToken";
+import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
     useEffect(() => {
@@ -27,6 +28,7 @@ export default function App() {
                     <Route path="/history" element={<HistoryPage />} />
                 </Routes>
             </BrowserRouter>
+            <Toaster position="bottom-right" />
         </AuthProvider>
     );
 }
