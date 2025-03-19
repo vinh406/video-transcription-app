@@ -2,9 +2,10 @@ let csrfToken: string | null = null;
 
 /**
  * Fetches a CSRF token from the server and stores it for use in API requests
+ * @param forceRefresh Force a new token request even if we have a cached one
  */
-export async function fetchCsrfToken(): Promise<string> {
-    if (csrfToken) {
+export async function fetchCsrfToken(forceRefresh = false): Promise<string> {
+    if (csrfToken && !forceRefresh) {
         return csrfToken;
     }
 
@@ -22,4 +23,8 @@ export async function fetchCsrfToken(): Promise<string> {
         }
     }
     throw new Error("CSRF token not found in response or cookies");
+}
+
+export function clearCsrfToken(): void {
+    csrfToken = null;
 }

@@ -1,5 +1,5 @@
 export const API_BASE_URL = "http://127.0.0.1:8000/api";
-import { fetchCsrfToken } from "./csrfToken";
+import { fetchCsrfToken, clearCsrfToken } from "./csrfToken";
 
 // Add this to handle requests that need CSRF protection
 async function fetchWithCsrf(url: string, options: RequestInit = {}) {
@@ -77,6 +77,8 @@ export async function signup(
 }
 
 export async function login(username: string, password: string) {
+    clearCsrfToken();
+
     const response = await fetchWithCsrf(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -84,7 +86,14 @@ export async function login(username: string, password: string) {
         credentials: "include",
     });
 
-    return await response.json();
+    const data = await response.json();
+
+    // After successful login, refresh the token again
+    if (response.ok) {
+        await fetchCsrfToken(true);
+    }
+
+    return data;
 }
 
 export async function logout() {
@@ -94,6 +103,10 @@ export async function logout() {
     });
 
     const data = await response.json();
+
+    // Clear the token after logout
+    clearCsrfToken();
+
     return data;
 }
 
