@@ -98,7 +98,7 @@ export async function getCurrentUser() {
 // Media history
 export async function getMediaHistory() {
     const response = await fetch(
-        `${API_BASE_URL}/transcription/media/history`,
+        `${API_BASE_URL}/transcription/history`, // Updated endpoint
         {
             method: "GET",
             credentials: "include",
@@ -107,9 +107,9 @@ export async function getMediaHistory() {
     return response.json();
 }
 
-export async function getMediaDetails(mediaId: string) {
+export async function getMediaDetails(transcriptionId: string) {
     const response = await fetch(
-        `${API_BASE_URL}/transcription/media/${mediaId}`,
+        `${API_BASE_URL}/transcription/${transcriptionId}`, // Updated endpoint
         {
             method: "GET",
             credentials: "include",
@@ -117,7 +117,6 @@ export async function getMediaDetails(mediaId: string) {
     );
     return response.json();
 }
-
 export async function transcribeYouTube(
     youtubeUrl: string,
     service: string,

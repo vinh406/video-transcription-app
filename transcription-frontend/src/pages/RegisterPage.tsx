@@ -100,7 +100,7 @@ export function RegisterPage() {
                 </form>
 
                 <p className="mt-4 text-center text-sm text-muted-foreground">
-                    Already have an account?{" "}
+                    Already have an account?
                     <Link to="/login" className="text-primary hover:underline">
                         Login
                     </Link>

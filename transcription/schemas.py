@@ -69,15 +69,15 @@ class SummarizeRequest(Schema):
     segments: List[Segment]
 
 
-class MediaFileSchema(Schema):
+class TranscriptionListSchema(Schema):
     id: str
+    media_id: str
     file_name: str
     mime_type: str
     created_at: str
-    has_transcript: bool
+    service: str
+    language: str
     has_summary: bool
-    service: Optional[str] = None
-
 
 class ErrorResponse(Schema):
     message: str

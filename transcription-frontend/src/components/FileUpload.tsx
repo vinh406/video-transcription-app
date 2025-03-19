@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/select";
 import { Upload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { languageOptions } from "@/lib/languages";
+import { serviceOptions } from "@/lib/services";
 
 interface FileUploadProps {
     onUpload: (file: File, service: string, language: string) => void;
@@ -130,15 +132,14 @@ export function FileUpload({
                             <SelectValue placeholder="Select service" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="whisperx">
-                                WhisperX (Local)
-                            </SelectItem>
-                            <SelectItem value="google">
-                                Google Gemini
-                            </SelectItem>
-                            <SelectItem value="elevenlabs">
-                                ElevenLabs
-                            </SelectItem>
+                            {serviceOptions.map((option) => (
+                                <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                >
+                                    {option.label}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 </div>
@@ -155,13 +156,14 @@ export function FileUpload({
                             <SelectValue placeholder="Select language" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="auto">Auto-detect</SelectItem>
-                            <SelectItem value="en">English</SelectItem>
-                            <SelectItem value="fr">French</SelectItem>
-                            <SelectItem value="de">German</SelectItem>
-                            <SelectItem value="es">Spanish</SelectItem>
-                            <SelectItem value="it">Italian</SelectItem>
-                            <SelectItem value="vi">Vietnamese</SelectItem>
+                            {languageOptions.map((option) => (
+                                <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                >
+                                    {option.label}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 </div>

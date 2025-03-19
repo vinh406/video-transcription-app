@@ -2,24 +2,27 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMediaHistory, getMediaDetails } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { getLanguageName } from "@/lib/languages";
+import { getServiceName } from "@/lib/services";
 
 import {
     Loader2,
     FileAudio,
     FileVideo,
     Youtube,
-    MessageSquareText,
     FileText,
+    Globe,
 } from "lucide-react";
 
 interface MediaItem {
-    id: string;
+    id: string; // transcription ID
+    media_id: string;
     file_name: string;
     mime_type: string;
     created_at: string;
-    has_transcript: boolean;
+    service: string;
+    language: string;
     has_summary: boolean;
-    service: string | null;
 }
 
 interface MediaHistoryProps {
@@ -70,18 +73,17 @@ export function MediaHistory({
         fetchMediaHistory();
     }, [user, navigate, limitCount]);
 
-    const handleMediaItemClick = async (mediaItem: MediaItem) => {
-        if (!mediaItem.has_transcript) return;
-
+    const handleMediaItemClick = async (item: MediaItem) => {
         setIsLoading(true);
         try {
-            const response = await getMediaDetails(mediaItem.id);
+            // Use the transcription ID directly
+            const response = await getMediaDetails(item.id);
 
             let mediaType;
             if (response.is_youtube) {
                 mediaType = "youtube";
             } else {
-                mediaType = mediaItem.mime_type.startsWith("audio/")
+                mediaType = item.mime_type.startsWith("audio/")
                     ? "audio"
                     : "video";
             }
@@ -93,13 +95,13 @@ export function MediaHistory({
                     mediaUrl: response.media_url,
                     isYoutube: response.is_youtube,
                     transcript: response.data.segments,
-                    fileName: mediaItem.file_name,
+                    fileName: item.file_name,
                     transcriptionId: response.transcription_id,
                     summary: response.summary,
                 },
             });
         } catch (error) {
-            console.error("Failed to fetch media details", error);
+            console.error("Failed to fetch transcription details", error);
         } finally {
             setIsLoading(false);
         }
@@ -135,43 +137,83 @@ export function MediaHistory({
                 {mediaItems.map((item) => (
                     <div
                         key={item.id}
-                        className="border rounded-lg p-4 hover:bg-accent/20 cursor-pointer transition-colors"
+                        className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:shadow-lg overflow-hidden cursor-pointer"
                         onClick={() => handleMediaItemClick(item)}
                     >
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="flex-shrink-0">
-                                {item.mime_type === "youtube" ? (
-                                    <Youtube className="w-5 h-5 text-red-500" />
-                                ) : item.mime_type.startsWith("audio/") ? (
-                                    <FileAudio className="w-5 h-5 text-primary" />
-                                ) : (
-                                    <FileVideo className="w-5 h-5 text-primary" />
-                                )}
+                        {/* Card header with icon and service badge */}
+                        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center gap-3">
+                                {/* Media type icon */}
+                                <div
+                                    className={`flex items-center justify-center w-8 h-6 rounded-md ${
+                                        item.mime_type === "youtube"
+                                            ? "bg-red-500"
+                                            : item.mime_type.startsWith(
+                                                  "audio/"
+                                              )
+                                            ? "bg-blue-500"
+                                            : "bg-primary"
+                                    }`}
+                                >
+                                    {item.mime_type === "youtube" ? (
+                                        <Youtube className="w-6 h-6 text-white" />
+                                    ) : item.mime_type.startsWith("audio/") ? (
+                                        <FileAudio className="w-6 h-6 text-white" />
+                                    ) : (
+                                        <FileVideo className="w-6 h-6 text-white" />
+                                    )}
+                                </div>
+
+                                {/* Service badge */}
+                                <div
+                                    className={`
+                                    inline-flex items-center text-xs px-2 py-1 rounded-full
+                                    ${
+                                        item.service === "whisperx"
+                                            ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                                            : item.service === "google"
+                                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                            : "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200"
+                                    }
+                                `}
+                                >
+                                    {getServiceName(item.service)}
+                                </div>
                             </div>
-                            <span className="font-medium truncate max-w-[calc(100%-2rem)]">
-                                {item.file_name}
-                            </span>
-                        </div>
-                        <div className="text-sm text-muted-foreground mb-3">
-                            {new Date(item.created_at).toLocaleDateString()}
-                            {" • "}
-                            {item.service || "unknown"}
+
+                            {/* Date in more prominent position */}
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {new Date(item.created_at).toLocaleDateString()}
+                            </div>
                         </div>
 
-                        <div className="flex gap-2">
-                            {item.has_transcript && (
-                                <div className="inline-flex items-center text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-full">
-                                    <MessageSquareText className="w-3 h-3 mr-1" />
-                                    Transcript
+                        {/* Card content */}
+                        <div className="flex-1 p-4">
+                            {/* Title with better spacing */}
+                            <h3 className="font-medium text-lg mb-3 line-clamp-2">
+                                {item.file_name}
+                            </h3>
+
+                            {/* Tags in a more organized layout */}
+                            <div className="flex flex-wrap gap-2 mt-auto">
+                                {/* Language badge */}
+                                <div className="inline-flex items-center text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">
+                                    <Globe className="w-3 h-3 mr-1" />
+                                    {getLanguageName(item.language)}
                                 </div>
-                            )}
-                            {item.has_summary && (
-                                <div className="inline-flex items-center text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 px-2 py-1 rounded-full">
-                                    <FileText className="w-3 h-3 mr-1" />
-                                    Summary
-                                </div>
-                            )}
+
+                                {/* Summary badge if exists */}
+                                {item.has_summary && (
+                                    <div className="inline-flex items-center text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded-md">
+                                        <FileText className="w-3 h-3 mr-1" />
+                                        Summary
+                                    </div>
+                                )}
+                            </div>
                         </div>
+
+                        {/* Subtle hover effect */}
+                        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                 ))}
             </div>

@@ -314,7 +314,7 @@ export const MediaPlayer = forwardRef<MediaPlayerHandle, MediaPlayerProps>(
                                 </Button>
 
                                 <span className="text-xs text-white">
-                                    {formatTime(currentTime)} /{" "}
+                                    {formatTime(currentTime)} /
                                     {formatTime(duration)}
                                 </span>
                             </div>

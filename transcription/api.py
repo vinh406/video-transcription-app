@@ -20,10 +20,11 @@ from .schemas import (
     TranscriptionResult,
     ErrorResponse,
     SummarizeRequest,
-    MediaFileSchema,
+    TranscriptionListSchema,
 )
 
 api = Router()
+
 
 @api.post(
     "/transcribe-youtube",
@@ -84,7 +85,7 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             result = transcribe_elevenlabs_api(temp_file_path, language=language)
         else:  # whisperx
             result = transcribe_whisperx(temp_file_path, language=language)
-        
+
         media_file.save()
 
         # Save the transcription result
@@ -223,32 +224,38 @@ def summarize_transcript(request, data: SummarizeRequest):
     }
 
 
-@api.get("/media/history", response={200: List[MediaFileSchema]}, auth=django_auth)
-def get_user_media_history(request):
+@api.get(
+    "/history",
+    response={200: List[TranscriptionListSchema]},
+    auth=django_auth,
+)
+def get_user_transcription_history(request):
     user = request.user
-    media_files = MediaFile.objects.filter(user=user).order_by("-created_at")
+    # Get transcriptions for the user's media files
+    transcriptions = (
+        Transcription.objects.filter(media_file__user=user)
+        .select_related("media_file")
+        .order_by("-created_at")
+    )
 
     result = []
-    for media_file in media_files:
-        # Check if transcription exists
-        transcription = Transcription.objects.filter(media_file=media_file).first()
-        has_transcript = transcription is not None
+    for transcription in transcriptions:
+        media_file = transcription.media_file
+        has_summary = Summary.objects.filter(transcription=transcription).exists()
 
-        has_summary = False
-        if transcription:
-            has_summary = Summary.objects.filter(transcription=transcription).exists()
+        # Determine if it's a YouTube file
+        is_youtube = len(media_file.file_hash) == 11
 
         result.append(
             {
-                "id": str(media_file.id),
+                "id": str(transcription.id),
+                "media_id": str(media_file.id),
                 "file_name": media_file.file_name,
-                "mime_type": "youtube"
-                if len(media_file.file_hash) == 11
-                else media_file.mime_type,
-                "created_at": media_file.created_at.isoformat(),
-                "has_transcript": has_transcript,
+                "mime_type": "youtube" if is_youtube else media_file.mime_type,
+                "created_at": transcription.created_at.isoformat(),
+                "service": transcription.service,
+                "language": transcription.language,
                 "has_summary": has_summary,
-                "service": transcription.service if transcription else None,
             }
         )
 
@@ -256,34 +263,29 @@ def get_user_media_history(request):
 
 
 @api.get(
-    "/media/{media_id}",
+    "/{transcription_id}",
     response={200: TranscriptionResult, 404: ErrorResponse},
     auth=django_auth,
 )
-def get_media_details(request, media_id: str):
+def get_transcription_details(request, transcription_id: str):
     try:
-        # Verify the user owns this media file
-        media_file = MediaFile.objects.get(id=media_id, user=request.user)
-
-        # Get the latest transcription
-        transcription = (
-            Transcription.objects.filter(media_file=media_file)
-            .order_by("-created_at")
-            .first()
+        # Get the transcription and verify the user owns it
+        transcription = Transcription.objects.select_related("media_file").get(
+            id=transcription_id, media_file__user=request.user
         )
 
-        if not transcription:
-            return 404, {"message": "No transcription found for this media"}
+        media_file = transcription.media_file
 
         response_data = {
             "message": "Transcription retrieved",
             "data": transcription.segments,
             "file_name": media_file.file_name,
             "transcription_id": str(transcription.id),
+            "service": transcription.service,
+            "language": transcription.language,
         }
 
         # Get summary if available
-        summary = None
         if Summary.objects.filter(transcription=transcription).exists():
             summary = Summary.objects.filter(transcription=transcription).latest(
                 "created_at"
@@ -301,5 +303,5 @@ def get_media_details(request, media_id: str):
 
         return 200, response_data
 
-    except MediaFile.DoesNotExist:
-        return 404, {"message": "Media file not found"}
+    except Transcription.DoesNotExist:
+        return 404, {"message": "Transcription not found"}

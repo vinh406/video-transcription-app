@@ -5,7 +5,7 @@ import { MediaHistory } from "@/components/MediaHistory";
 import { transcribeFile, transcribeYouTube } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, User } from "lucide-react";
+import { ArrowRight, LogOut, User } from "lucide-react";
 
 export function UploadPage() {
     const [isTranscribing, setIsTranscribing] = useState(false);
@@ -136,6 +136,7 @@ export function UploadPage() {
                                 className="flex items-center gap-1"
                             >
                                 View All
+                                <ArrowRight size={16} />
                             </Button>
                         </div>
                         {user ? (
