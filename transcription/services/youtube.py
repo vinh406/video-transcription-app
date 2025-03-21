@@ -17,23 +17,22 @@ def download_youtube(youtube_url):
         # Create YouTube object
         yt = YouTube(youtube_url)
 
-        # Get audio stream with highest quality
-        video_stream = yt.streams.get_highest_resolution()
+        audio_stream = yt.streams.get_audio_only()
 
-        if not video_stream:
+        if not audio_stream:
             raise ValueError("No audio stream found for this YouTube video")
 
         # Create temp file for the audio
         temp_dir = tempfile.mkdtemp()
-        temp_file = os.path.join(temp_dir, f"{yt.video_id}.{video_stream.subtype}")
+        temp_file = os.path.join(temp_dir, f"{yt.video_id}.m4a")
 
         # Download the audio stream
-        video_stream.download(
-            output_path=temp_dir, filename=f"{yt.video_id}.{video_stream.subtype}"
+        audio_stream.download(
+            output_path=temp_dir, filename=f"{yt.video_id}.m4a"
         )
 
         # Return the file path, video title, and mime type
-        return temp_file, f"video/{video_stream.subtype}"
+        return temp_file, f"{audio_stream.subtype}"
 
     except Exception as e:
         raise ValueError(f"Failed to download YouTube audio: {str(e)}")

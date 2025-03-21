@@ -40,6 +40,64 @@ def transcribe_google_api(file_path, language=None):
             "Google client not initialized. Please set GOOGLE_API_KEY in .env file."
         )
 
+    # Import necessary libraries for audio processing
+    from pydub import AudioSegment
+    import tempfile
+    import os
+
+    # Define segment length (15 minutes in milliseconds)
+    SEGMENT_LENGTH = 15 * 60 * 1000  # 15 minutes in milliseconds
+
+    try:
+        # Load the audio file
+        audio = AudioSegment.from_file(file_path)
+        total_duration = len(audio)
+
+        # If file is shorter than segment length, process it directly
+        if total_duration <= SEGMENT_LENGTH:
+            return process_audio_segment(file_path, language)
+
+        # Otherwise, split and process in segments
+        segments_results = []
+
+        for i, start_time in enumerate(range(0, total_duration, SEGMENT_LENGTH)):
+            # Extract segment
+            end_time = min(start_time + SEGMENT_LENGTH, total_duration)
+            segment = audio[start_time:end_time]
+
+            # Save segment to temp file
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                segment_path = temp_file.name
+                segment.export(segment_path, format="wav")
+
+            try:
+                # Process segment
+                print(
+                    f"Processing segment {i + 1}: {start_time / 1000}-{end_time / 1000} seconds"
+                )
+                segment_result = process_audio_segment(segment_path, language)
+
+                # Adjust timestamps with the offset
+                offset_in_seconds = start_time / 1000  # Convert ms to seconds
+                for seg in segment_result["segments"]:
+                    seg["start"] += offset_in_seconds
+                    seg["end"] += offset_in_seconds
+
+                # Add to results
+                segments_results.extend(segment_result["segments"])
+            finally:
+                # Clean up temp file
+                if os.path.exists(segment_path):
+                    os.remove(segment_path)
+
+        return {"segments": segments_results}
+
+    except Exception as e:
+        raise ValueError(f"Error processing audio: {str(e)}") from e
+
+
+def process_audio_segment(file_path, language=None):
+    """Process a single audio segment with Google Gemini API"""
     # Upload the file
     video = upload_video(file_path)
     system_instructions = """
@@ -49,6 +107,12 @@ def transcribe_google_api(file_path, language=None):
     
     The 'start' and 'end' columns must follow the format of MM:SS.mmm.
     Timestamps should have milli-second level accuracy.
+    """
+    if language is not None and language != "auto":
+        system_instructions += f"""
+        The text must be translated to {language}.
+        """
+    system_instructions += """
     The 'speaker' column must indicate the speaker's name or use the format 'Speaker X'.
     DO NOT include a header row.
     Each row must represent one segment.
@@ -56,28 +120,26 @@ def transcribe_google_api(file_path, language=None):
 
     prompt = "Transcribe the following audio file with correct timestamps"
 
-    if language is not None and language != "auto":
-        prompt += f" and translate it to {language}."
-
     # Generate content
-    response = google_client.models.generate_content(
+    response = google_client.models.generate_content_stream(
         model=model_name,
         contents=[video, prompt],
         config=types.GenerateContentConfig(
             system_instruction=system_instructions,
-            # Remove response_schema and mime_type since we're using TSV
         ),
     )
-    if response.text is None:
-        raise ValueError(f"Transcription failed: {response}")
-
-    text = response.text.strip()
     
-    print(f"Transcription response: {text}")
+    text = "\n"
+
+    for chunk in response:
+        if chunk.text is None:
+            print(chunk)
+            continue
+        text += chunk.text
+        print(chunk.text, end="")
 
     try:
         # Parse TSV response using csv module
-
         segments = []
         csv_reader = csv.reader(StringIO(text), delimiter="\t")
 
@@ -92,9 +154,7 @@ def transcribe_google_api(file_path, language=None):
                 text_content = row[2]
 
                 # Use default speaker if missing
-                speaker = (
-                    row[3] if len(row) >= 4 and row[3].strip() else "Unknown"
-                )
+                speaker = row[3] if len(row) >= 4 and row[3].strip() else "Unknown"
 
                 try:
                     segment = {
@@ -114,6 +174,7 @@ def transcribe_google_api(file_path, language=None):
         raise ValueError(f"Error parsing TSV from GenAI API: {text}") from e
 
     return result
+
 
 def parse_timestamp(timestamp_str):
     """
@@ -169,6 +230,8 @@ def summarize_content(transcript_segments):
     Then, provide key points, one per row, with each row having two tab-separated columns:
     1. The summary point text
     2. The timestamp in seconds where this information appears (as a decimal number, not a string)
+    
+    The summary must be in the same language as the transcript.
     
     Format:
     OVERVIEW:\t<overview text>
