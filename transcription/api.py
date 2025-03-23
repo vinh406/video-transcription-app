@@ -21,7 +21,6 @@ from .schemas import (
     ErrorResponse,
     SummarizeRequest,
     TranscriptionListSchema,
-    RegenerateTranscriptionRequest,
 )
 
 api = Router()
@@ -364,7 +363,7 @@ def delete_transcription(request, transcription_id: str):
     auth=django_auth,
 )
 def regenerate_transcription(
-    request, transcription_id: str, data: RegenerateTranscriptionRequest
+    request, transcription_id: str, data: TranscriptionRequest
 ):
     """
     Regenerate a transcription with a different service or language.

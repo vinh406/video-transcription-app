@@ -1,7 +1,14 @@
-import { JSX, useRef } from "react";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { SummaryData } from "@/types/summary";
+import { formatTime } from "@/lib/utils";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface SummaryPanelProps {
     summary: SummaryData | null;
@@ -15,53 +22,6 @@ export function SummaryPanel({
     onTimestampClick,
 }: SummaryPanelProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-
-    // Extract timestamp references from text [00:00] or [00]
-    const extractTimestamps = (text: string): JSX.Element => {
-        if (!text) return <>{text}</>;
-
-        // Match both [XX:XX] and [XX] formats
-        const parts = text.split(/(\[\d+(?::\d+)?\]|\[\d+\.\d+\])/g);
-
-        return (
-            <>
-                {parts.map((part, index) => {
-                    // Check if this part is a timestamp
-                    const timestampMatch = part.match(
-                        /\[(\d+(?::\d+)?)\]|\[(\d+\.\d+)\]/
-                    );
-
-                    if (timestampMatch) {
-                        const timestampStr =
-                            timestampMatch[1] || timestampMatch[2];
-                        let seconds = 0;
-
-                        // Convert to seconds based on format
-                        if (timestampStr.includes(":")) {
-                            const [min, sec] = timestampStr
-                                .split(":")
-                                .map(Number);
-                            seconds = min * 60 + sec;
-                        } else {
-                            seconds = parseFloat(timestampStr);
-                        }
-
-                        return (
-                            <span
-                                key={index}
-                                className="inline-block px-1.5 py-0.5 bg-primary/20 text-primary rounded cursor-pointer hover:bg-primary/30"
-                                onClick={() => onTimestampClick?.(seconds)}
-                            >
-                                {part}
-                            </span>
-                        );
-                    }
-
-                    return <span key={index}>{part}</span>;
-                })}
-            </>
-        );
-    };
 
     if (isLoading) {
         return (
@@ -83,18 +43,9 @@ export function SummaryPanel({
         );
     }
 
-    // Handle string summary (older format)
-    if (typeof summary === "string") {
-        return (
-            <div ref={containerRef} className="prose prose-sm max-w-none">
-                {extractTimestamps(summary)}
-            </div>
-        );
-    }
-
     // Handle structured summary data
     return (
-        <div ref={containerRef} className="space-y-6">
+        <div ref={containerRef}>
             {summary.overview && (
                 <div className="border-b pb-4">
                     <h3 className="font-medium text-lg mb-2">Overview</h3>
@@ -102,45 +53,123 @@ export function SummaryPanel({
                 </div>
             )}
 
-            {summary.summary_points && summary.summary_points.length > 0 && (
-                <div>
-                    <h3 className="font-medium text-lg mb-3">Key Points</h3>
-                    <ul className="space-y-3 list-disc pl-5">
-                        {summary.summary_points.map((point, index) => (
-                            <li key={index} className="pl-1">
-                                {point.timestamp !== undefined ? (
-                                    <div className="flex items-start gap-1">
-                                        <div className="flex-1">
-                                            {point.text}
-                                        </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-primary shrink-0 h-6"
-                                            onClick={() =>
+            {summary.chapters && summary.chapters.length > 0 && (
+                <Accordion
+                    type="multiple"
+                    defaultValue={summary.chapters.map(
+                        (_, i) => `chapter-${i}`
+                    )}
+                    className="space-y-2"
+                >
+                    {summary.chapters.map((chapter, index) => (
+                        <AccordionItem
+                            key={index}
+                            value={`chapter-${index}`}
+                        >
+                            <AccordionTrigger className="flex px-3 py-2 bg-muted/30 hover:no-underline">
+                                <div className="flex items-center flex-1 text-left text-base">
+                                    <div
+                                        className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-3"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (
+                                                chapter.timestamp !== undefined
+                                            ) {
                                                 onTimestampClick?.(
-                                                    point.timestamp!
-                                                )
+                                                    chapter.timestamp
+                                                );
                                             }
-                                        >
-                                            [{formatTime(point.timestamp)}]
-                                        </Button>
+                                        }}
+                                        title="Jump to this chapter"
+                                    >
+                                        <span className="text-sm font-medium text-primary hover:underline">
+                                            {formatTime(chapter.timestamp || 0)}
+                                        </span>
                                     </div>
-                                ) : (
-                                    extractTimestamps(point.text)
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                                    <h4 className="font-medium">
+                                        {chapter.title}
+                                    </h4>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="p-3">
+                                {chapter.points &&
+                                    chapter.points.length > 0 && (
+                                        <ul className="space-y-2">
+                                            {chapter.points.map(
+                                                (point, index) => (
+                                                    <li
+                                                        key={index}
+                                                        className="text-sm"
+                                                    >
+                                                        {point.timestamp !==
+                                                        undefined ? (
+                                                            <div className="flex items-start gap-2">
+                                                                <button
+                                                                    className="text-left font-medium hover:underline"
+                                                                    onClick={() =>
+                                                                        onTimestampClick?.(
+                                                                            point.timestamp!
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    [
+                                                                    {formatTime(
+                                                                        point.timestamp
+                                                                    )}
+                                                                    ]
+                                                                </button>
+                                                                <span>
+                                                                    {point.text}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span>
+                                                                {point.text}
+                                                            </span>
+                                                        )}
+                                                    </li>
+                                                )
+                                            )}
+                                        </ul>
+                                    )}
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
             )}
+
+            {!summary.chapters &&
+                summary.summary_points &&
+                summary.summary_points.length > 0 && (
+                    <div className="space-y-2 mt-6">
+                        <h3 className="font-medium text-lg mb-2">
+                            Summary Points
+                        </h3>
+                        <ul className="space-y-2">
+                            {summary.summary_points.map((point, index) => (
+                                <li key={index}>
+                                    {point.timestamp !== undefined ? (
+                                        <div className="flex items-start gap-2">
+                                            <button
+                                                className="text-left font-medium hover:underline"
+                                                onClick={() =>
+                                                    onTimestampClick?.(
+                                                        point.timestamp!
+                                                    )
+                                                }
+                                            >
+                                                [{formatTime(point.timestamp)}]
+                                            </button>
+                                            <span>{point.text}</span>
+                                        </div>
+                                    ) : (
+                                        <span>{point.text}</span>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
         </div>
     );
-}
-
-// Format time in MM:SS format
-function formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

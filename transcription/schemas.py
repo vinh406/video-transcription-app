@@ -36,10 +36,15 @@ class SummaryPoint(Schema):
     text: str
     timestamp: Optional[float] = None
 
+class SummaryChapter(Schema):
+    title: str
+    timestamp: Optional[float] = None
+    points: List[SummaryPoint]
 
 class SummaryData(Schema):
     overview: str
     summary_points: Optional[List[SummaryPoint]] = None
+    chapters: Optional[List[SummaryChapter]] = None
 
 class YouTubeTranscriptionRequest(Schema):
     youtube_url: str
@@ -81,9 +86,3 @@ class TranscriptionListSchema(Schema):
 
 class ErrorResponse(Schema):
     message: str
-
-class RegenerateTranscriptionRequest(Schema):
-    """Schema for regenerating a transcription with different service/language."""
-
-    service: str
-    language: str

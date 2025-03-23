@@ -203,7 +203,7 @@ def parse_timestamp(timestamp_str):
 
 
 def summarize_content(transcript_segments):
-    """Generate a summary of the transcribed content using Gemini API with TSV format"""
+    """Generate a chapter-based summary of the transcribed content using Gemini API"""
     if google_client is None:
         raise ValueError(
             "Google client not initialized. Please set GOOGLE_API_KEY in .env file."
@@ -217,27 +217,42 @@ def summarize_content(transcript_segments):
         )
 
     summarization_prompt = f"""
-    Please provide a summary of the following transcript:
+    Analyze and summarize the following transcript. Identify the main topics discussed and organize them into chapters:
     
     {formatted_transcript}
     """
 
     system_instruction = """
-    You are an AI assistant specialized in summarizing transcribed content.
-    Provide a summary that captures the main points of the transcript in TSV format.
+    You are an expert transcription analyzer that can organize long transcripts into logical chapters with key points.
     
-    First, provide a single row with the overall summary prefixed with "OVERVIEW:".
-    Then, provide key points, one per row, with each row having two tab-separated columns:
-    1. The summary point text
-    2. The timestamp in seconds where this information appears (as a decimal number, not a string)
+    For this transcript:
+    1. First, carefully analyze the entire content to understand the main topics and their sequence
+    2. Create a concise overview (2-3 sentences) that captures the overall content
+    3. Divide the transcript into 3-5 logical chapters based on topic changes or natural transitions
+    4. For each chapter, provide:
+       - A descriptive chapter title
+       - The approximate start timestamp in the transcript
+       - 2-4 key points that capture the important information in that chapter
+
+    Return your summary in TSV (Tab-Separated Values) format:
     
-    The summary must be in the same language as the transcript.
-    
-    Format:
-    OVERVIEW:\t<overview text>
-    <point text>\t<timestamp>
-    <point text>\t<timestamp>
+    OVERVIEW:\t<A concise 2-3 sentence overview of the entire transcript>
+    CHAPTER\t<Chapter 1 Title>\t<start timestamp in seconds>
+    POINT\t<Key point 1 for Chapter 1>\t<relevant timestamp in seconds>
+    POINT\t<Key point 2 for Chapter 1>\t<relevant timestamp in seconds>
+    CHAPTER\t<Chapter 2 Title>\t<start timestamp in seconds>
+    POINT\t<Key point 1 for Chapter 2>\t<relevant timestamp in seconds>
+    POINT\t<Key point 2 for Chapter 2>\t<relevant timestamp in seconds>
     ...
+    
+    Guidelines:
+    - The overview should capture the main theme without being too long
+    - Chapter titles should be short, descriptive phrases that clearly indicate the topic
+    - Key points should be specific and informative, not vague
+    - Use the same language as the transcript
+    - Timestamps should be provided as decimal numbers in seconds (e.g., 145.2)
+    - If you can't determine a precise timestamp for a point, provide your best estimate
+    - Ensure chapter divisions make logical sense based on topic transitions
     """
 
     try:
@@ -245,7 +260,9 @@ def summarize_content(transcript_segments):
             model=model_name,
             contents=summarization_prompt,
             config=types.GenerateContentConfig(
-                system_instruction=system_instruction, max_output_tokens=64000
+                system_instruction=system_instruction,
+                max_output_tokens=64000,
+                temperature=0.1,  # Lower temperature for more structured output
             ),
         )
 
@@ -253,45 +270,74 @@ def summarize_content(transcript_segments):
 
         try:
             # Parse the TSV response using CSV reader
-            summary_data = {"summary_points": []}
+            summary_data = {"overview": "", "chapters": []}
+            current_chapter = None
             csv_reader = csv.reader(StringIO(text_response), delimiter="\t")
 
             for row in csv_reader:
-                if not row:  # Skip empty rows
+                if not row or not row[0].strip():  # Skip empty rows
                     continue
 
+                row_type = row[0].strip()
+
                 # Handle the overview row
-                if row[0].startswith("OVERVIEW:"):
+                if row_type.startswith("OVERVIEW:"):
                     overview = row[0].replace("OVERVIEW:", "").strip()
                     # If there's a value in the next column, use it
                     if len(row) > 1 and row[1].strip():
                         overview = row[1].strip()
                     summary_data["overview"] = overview
-                # Handle summary points
-                elif len(row) >= 2:
-                    text = row[0].strip()
-                    timestamp_str = row[1].strip()
+
+                # Handle chapter headings
+                elif row_type == "CHAPTER" and len(row) >= 3:
+                    chapter_title = row[1].strip()
+                    timestamp_str = row[2].strip()
 
                     try:
                         timestamp = float(timestamp_str)
-                        summary_data["summary_points"].append(
-                            {"text": text, "timestamp": timestamp}
+                        current_chapter = {
+                            "title": chapter_title,
+                            "timestamp": timestamp,
+                            "points": [],
+                        }
+                        summary_data["chapters"].append(current_chapter)
+                    except ValueError:
+                        # If timestamp can't be converted, still create the chapter
+                        current_chapter = {"title": chapter_title, "points": []}
+                        summary_data["chapters"].append(current_chapter)
+
+                # Handle key points
+                elif (
+                    row_type == "POINT"
+                    and len(row) >= 3
+                    and current_chapter is not None
+                ):
+                    point_text = row[1].strip()
+                    timestamp_str = row[2].strip()
+
+                    try:
+                        timestamp = float(timestamp_str)
+                        current_chapter["points"].append(
+                            {"text": point_text, "timestamp": timestamp}
                         )
                     except ValueError:
-                        # If timestamp can't be converted to float, use text only
-                        summary_data["summary_points"].append({"text": text})
-
+                        # If timestamp can't be converted, add point without timestamp
+                        current_chapter["points"].append({"text": point_text})
+            print(
+                f"Summary generated successfully: {summary_data}"
+            )
             return summary_data
 
         except Exception as e:
             raise ValueError(
-                f"Error parsing TSV from GenAI API: {text_response}"
+                f"Error parsing chapter-based summary from GenAI API: {text_response}"
             ) from e
 
     except Exception as e:
-        print(f"Error generating summary: {e}")
+        print(f"Error generating chapter-based summary: {e}")
         return {
-            "summary": "Failed to generate summary.",
+            "overview": "Failed to generate summary.",
+            "chapters": [],
             "success": False,
             "error": str(e),
         }

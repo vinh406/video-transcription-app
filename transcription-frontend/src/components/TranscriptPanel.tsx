@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { formatTime } from "@/lib/utils";
 
 interface Word {
     start: number;
@@ -29,13 +30,6 @@ export function TranscriptPanel({
     onSeek,
 }: TranscriptPanelProps) {
     const activeSegmentRef = useRef<HTMLDivElement>(null);
-
-    // Format time in MM:SS format
-    const formatTime = (seconds: number): string => {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, "0")}`;
-    };
 
     // Auto-scroll to the active segment
     useEffect(() => {
