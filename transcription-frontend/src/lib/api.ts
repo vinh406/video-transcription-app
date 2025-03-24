@@ -215,3 +215,21 @@ export async function regenerateTranscription(
 
     return response.json();
 }
+
+export async function deleteSummary(
+    transcriptionId: string,
+    segmentId: string
+) {
+    const response = await fetchWithCsrf(
+        `${API_BASE_URL}/transcription/${transcriptionId}/summary/${segmentId}`,
+        {
+            method: "DELETE",
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Delete summary failed with status: ${response.status}`);
+    }
+
+    return response.json();
+}

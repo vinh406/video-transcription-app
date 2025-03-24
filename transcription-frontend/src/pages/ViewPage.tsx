@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AudioLayout from "@/layouts/AudioLayout";
 import VideoLayout from "@/layouts/VideoLayout";
-import { summarizeTranscript } from "@/lib/api";
+import { summarizeTranscript, deleteSummary } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, UploadCloud } from "lucide-react";
 import { Segment } from "@/types/segment";
@@ -14,14 +14,14 @@ interface ViewPageState {
     isYoutube: boolean;
     transcript: Segment[];
     fileName: string;
-    transcriptionId?: string;
-    summary?: SummaryData;
+    transcriptionId: string;
+    summaries?: SummaryData[];
 }
 
 export function ViewPage() {
     const location = useLocation();
     const navigate = useNavigate();
-    const [summary, setSummary] = useState(location.state?.summary || null);
+    const [summaries, setSummary] = useState(location.state?.summary || null);
     const [isSummarizing, setIsSummarizing] = useState(false);
     const state = location.state as ViewPageState;
 
@@ -61,6 +61,20 @@ export function ViewPage() {
         }
     };
 
+    const handleDeleteSummary = async (summaryId: string) => {
+        try {
+            // Delete the summary using its ID
+            await deleteSummary(state.transcriptionId, summaryId);
+
+            // Update local state (remove the deleted summary)
+            const updatedSummaries = summaries.filter((summary: SummaryData) => summary.id !== summaryId);
+            setSummary(updatedSummaries);
+
+        } catch (error) {
+            console.error("Failed to delete summary:", error);
+        }
+    };
+
     return (
         <div className="h-screen flex flex-col">
             <header className="flex items-center justify-between border-b p-4">
@@ -92,9 +106,10 @@ export function ViewPage() {
                     <AudioLayout
                         audioUrl={mediaUrl}
                         transcript={transcript}
-                        summary={summary}
+                        summaries={summaries}
                         onSummarize={handleSummarize}
                         isSummarizing={isSummarizing}
+                        onDeleteSummary={handleDeleteSummary}
                     />
                 )}
 
@@ -103,9 +118,10 @@ export function ViewPage() {
                         videoUrl={mediaUrl}
                         isYoutube={isYoutube}
                         transcript={transcript}
-                        summary={summary}
+                        summaries={summaries}
                         onSummarize={handleSummarize}
                         isSummarizing={isSummarizing}
+                        onDeleteSummary={handleDeleteSummary}
                     />
                 )}
             </div>

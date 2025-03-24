@@ -10,6 +10,7 @@ export interface SummaryChapter {
 }
 
 export interface SummaryData {
+    id: string;
     overview: string;
 
     chapters?: SummaryChapter[];

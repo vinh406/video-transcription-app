@@ -22,6 +22,7 @@ from .schemas import (
     SummarizeRequest,
     TranscriptionListSchema,
 )
+from collections import defaultdict
 
 api = Router()
 
@@ -212,6 +213,18 @@ def summarize_transcript(request, data: SummarizeRequest):
             )
 
             summary.save()
+            
+            result = []
+            summaries = Summary.objects.filter(transcription=transcription)
+            for summary in summaries:
+                result.append(
+                    {
+                        "id": str(summary.id),
+                        "overview": summary.content.get("overview"),
+                        "summary_points": summary.content.get("summary_points"),
+                        "chapters": summary.content.get("chapters"),
+                    }
+                )
 
         except Transcription.DoesNotExist:
             # If transcription not found, just return the summary without saving
@@ -219,7 +232,7 @@ def summarize_transcript(request, data: SummarizeRequest):
 
     return 200, {
         "message": "Summary generated successfully",
-        "summary": summary_result,
+        "summary": result,
         "transcription_id": transcription_id,
     }
 
@@ -276,21 +289,28 @@ def get_transcription_details(request, transcription_id: str):
 
         media_file = transcription.media_file
 
-        response_data = {
+        response_data = defaultdict(list, {
             "message": "Transcription retrieved",
             "data": transcription.segments,
             "file_name": media_file.file_name,
             "transcription_id": str(transcription.id),
             "service": transcription.service,
             "language": transcription.language,
-        }
+        })
 
         # Get summary if available
         if Summary.objects.filter(transcription=transcription).exists():
-            summary = Summary.objects.filter(transcription=transcription).latest(
-                "created_at"
-            )
-            response_data["summary"] = summary.content
+            summaries = Summary.objects.filter(transcription=transcription)
+            
+            for summary in summaries:
+                response_data["summary"].append(
+                    {
+                        "id": str(summary.id),
+                        "overview": summary.content.get("overview"),
+                        "summary_points": summary.content.get("summary_points"),
+                        "chapters": summary.content.get("chapters"),
+                    }
+                )
 
         # Check if it's a YouTube video
         is_youtube = len(media_file.file_hash) == 11
@@ -432,3 +452,30 @@ def regenerate_transcription(
 
     except Transcription.DoesNotExist:
         return 404, {"message": "Transcription not found"}
+
+@api.delete(
+    "/{transcription_id}/summary/{summary_id}",
+    response={200: dict, 404: ErrorResponse, 403: ErrorResponse},
+    auth=django_auth,
+)
+def delete_summary(request, transcription_id: str, summary_id: str):
+    """
+    Delete a specific summary by ID.
+    """
+    try:
+        transcription = Transcription.objects.get(id=transcription_id)
+
+        # Check if the user has permission to delete this summary
+        if transcription.media_file.user != request.user:
+            return 403, {"detail": "You don't have permission to delete this summary"}
+
+        # Find and delete the summary
+        summary = Summary.objects.get(id=summary_id, transcription=transcription)
+        summary.delete()
+
+        return 200, {"detail": "Summary deleted successfully"}
+
+    except Transcription.DoesNotExist:
+        return 404, {"detail": "Transcription not found"}
+    except Summary.DoesNotExist:
+        return 404, {"detail": "Summary not found"}

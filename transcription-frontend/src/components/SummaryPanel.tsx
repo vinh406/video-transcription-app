@@ -1,27 +1,106 @@
-import { useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { SummaryData } from "@/types/summary";
 import { formatTime } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner"; // Import toast
 import {
     Accordion,
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 interface SummaryPanelProps {
-    summary: SummaryData | null;
+    summaries: SummaryData[];
     isLoading: boolean;
     onTimestampClick?: (time: number) => void;
+    onSummarize?: () => void;
+    onDeleteSummary?: (summaryId: string) => Promise<void>;
 }
 
 export function SummaryPanel({
-    summary,
+    summaries,
     isLoading,
     onTimestampClick,
+    onSummarize,
+    onDeleteSummary,
 }: SummaryPanelProps) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const [activeTab, setActiveTab] = useState(0);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [localSummaries, setLocalSummaries] =
+        useState<SummaryData[]>(summaries);
+
+    useEffect(() => {
+        if (!isDeleting) {
+            setLocalSummaries(summaries);
+        }
+    }, [summaries, isDeleting]);
+    
+    const handlePrevTab = () => {
+        setActiveTab((prev) => (prev > 0 ? prev - 1 : prev));
+    };
+
+    const handleNextTab = () => {
+        setActiveTab((prev) =>
+            prev < localSummaries.length - 1 ? prev + 1 : prev
+        );
+    };
+
+    const handleDeleteClick = () => {
+        setShowDeleteDialog(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (localSummaries.length === 0 || activeTab >= localSummaries.length) {
+            return;
+        }
+
+        const summaryToDelete = localSummaries[activeTab];
+
+        // Check if the summary has an id
+        if (!summaryToDelete.id) {
+            toast.error("Cannot delete summary without an ID");
+            setShowDeleteDialog(false);
+            return;
+        }
+
+        setIsDeleting(true);
+        try {
+            // If parent provides a delete handler, use it
+            if (onDeleteSummary) {
+                await onDeleteSummary(summaryToDelete.id);
+            }
+
+            // Update local state
+            const updatedSummaries = [...localSummaries];
+            updatedSummaries.splice(activeTab, 1);
+            setLocalSummaries(updatedSummaries);
+
+            // If we deleted the current tab and it was the last one, go to previous tab
+            if (activeTab >= updatedSummaries.length && activeTab > 0) {
+                setActiveTab(activeTab - 1);
+            }
+
+            toast.success("Summary deleted successfully");
+        } catch (error) {
+            console.error("Failed to delete summary:", error);
+            toast.error("Failed to delete the summary. Please try again.");
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteDialog(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -32,20 +111,136 @@ export function SummaryPanel({
         );
     }
 
-    if (!summary) {
+    if (!localSummaries || localSummaries.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center h-full">
-                <p className="text-muted-foreground text-center mb-4">
-                    No summary available yet.
-                </p>
-                <Button disabled>Generate Summary</Button>
+            <div className="flex justify-end h-full">
+                {onSummarize && (
+                    <Button
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={onSummarize}
+                    >
+                        Generate Summary
+                    </Button>
+                )}
             </div>
         );
     }
 
-    // Handle structured summary data
+    // Header with regenerate button and compact pagination
+    const panelHeader = (
+        <div className="mb-4 flex justify-between items-center">
+            <div className="flex items-center">
+                {localSummaries.length > 1 ? (
+                    <div className="flex items-center gap-1">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handlePrevTab}
+                            disabled={activeTab === 0}
+                            className="h-8 w-8"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+
+                        <span className="text-sm">
+                            {activeTab + 1}/{localSummaries.length}
+                        </span>
+
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleNextTab}
+                            disabled={activeTab === localSummaries.length - 1}
+                            className="h-8 w-8"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleDeleteClick}
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            title="Delete summary"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                ) : (
+                    <div></div> // Empty div for flex spacing when only one summary
+                )}
+            </div>
+
+            {onSummarize && (
+                <Button
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={onSummarize}
+                    disabled={isLoading}
+                >
+                    Regenerate Summary
+                </Button>
+            )}
+        </div>
+    );
+
+    const content = (
+        <>
+            {panelHeader}
+            {localSummaries.length > 0 && (
+                <SummaryContent
+                    summary={localSummaries[activeTab]}
+                    onTimestampClick={onTimestampClick}
+                />
+            )}
+
+            {/* Delete confirmation dialog */}
+            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Summary</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this summary? This
+                            action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowDeleteDialog(false)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleDeleteConfirm}
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                                <Trash2 className="h-4 w-4 mr-2" />
+                            )}
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+
+    // Multiple summaries or single summary - unified rendering
+    return <div ref={containerRef}>{content}</div>;
+}
+
+function SummaryContent({
+    summary,
+    onTimestampClick,
+}: {
+    summary: SummaryData;
+    onTimestampClick?: (time: number) => void;
+}) {
     return (
-        <div ref={containerRef}>
+        <div>
             {summary.overview && (
                 <div className="border-b pb-4">
                     <h3 className="font-medium text-lg mb-2">Overview</h3>
@@ -62,10 +257,7 @@ export function SummaryPanel({
                     className="space-y-2"
                 >
                     {summary.chapters.map((chapter, index) => (
-                        <AccordionItem
-                            key={index}
-                            value={`chapter-${index}`}
-                        >
+                        <AccordionItem key={index} value={`chapter-${index}`}>
                             <AccordionTrigger className="flex px-3 py-2 bg-muted/30 hover:no-underline">
                                 <div className="flex items-center flex-1 text-left text-base">
                                     <div
@@ -96,9 +288,9 @@ export function SummaryPanel({
                                     chapter.points.length > 0 && (
                                         <ul className="space-y-2">
                                             {chapter.points.map(
-                                                (point, index) => (
+                                                (point, pointIndex) => (
                                                     <li
-                                                        key={index}
+                                                        key={pointIndex}
                                                         className="text-sm"
                                                     >
                                                         {point.timestamp !==

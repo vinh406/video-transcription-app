@@ -19,7 +19,7 @@ interface Segment {
 }
 
 interface TranscriptPanelProps {
-    transcript: Segment[] | null;
+    transcript: Segment[];
     currentTime: number;
     onSeek: (time: number) => void;
 }
@@ -40,17 +40,6 @@ export function TranscriptPanel({
             });
         }
     }, [currentTime]);
-
-    if (!transcript || transcript.length === 0) {
-        return (
-            <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground text-center">
-                    No transcript available yet. Upload media to generate
-                    transcription.
-                </p>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-4">

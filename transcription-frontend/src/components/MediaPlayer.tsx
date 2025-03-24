@@ -24,7 +24,7 @@ export interface MediaPlayerHandle {
 }
 
 interface MediaPlayerProps {
-    src: string | null;
+    src: string;
     type?: "audio" | "video" | "youtube";
     onTimeUpdate?: (time: number) => void;
 }
@@ -115,12 +115,6 @@ export const MediaPlayer = forwardRef<MediaPlayerHandle, MediaPlayerProps>(
             const seconds = Math.floor(time % 60);
             return `${minutes}:${seconds.toString().padStart(2, "0")}`;
         };
-
-        if (!src) {
-            return (
-                <div ref={containerRef} className="w-full h-full bg-black" />
-            );
-        }
 
         // Determine correct URL format for YouTube
         let url = src;

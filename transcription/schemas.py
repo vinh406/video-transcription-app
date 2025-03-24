@@ -42,6 +42,7 @@ class SummaryChapter(Schema):
     points: List[SummaryPoint]
 
 class SummaryData(Schema):
+    id: str
     overview: str
     summary_points: Optional[List[SummaryPoint]] = None
     chapters: Optional[List[SummaryChapter]] = None
@@ -63,7 +64,7 @@ class TranscriptionResult(Schema):
     media_url: Optional[str] = None
     file_name: Optional[str] = None
     is_youtube: bool = False
-    summary: Optional[SummaryData] = None
+    summary: Optional[List[SummaryData]] = None
     transcription_id: Optional[str] = None
 
 
