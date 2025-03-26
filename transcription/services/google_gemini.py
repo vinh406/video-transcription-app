@@ -100,25 +100,34 @@ def process_audio_segment(file_path, language=None):
     """Process a single audio segment with Google Gemini API"""
     # Upload the file
     video = upload_video(file_path)
+
     system_instructions = """
-    You are a transcription assistant. Your task is to transcribe the audio file provided to you.
+    You are a transcription assistant specialized in multilingual audio processing.
+    Your task is to transcribe the audio file provided to you accurately.
+    """
+
+    if language is not None and language != "auto":
+        system_instructions += f"""
+        IMPORTANT: Transcribe the audio AND OUTPUT THE TRANSCRIPTION IN {language.upper()} LANGUAGE.
+        If the audio is in a different language, you must both recognize and translate to {language}.
+        """
+    else:
+        system_instructions += """
+        Detect the language automatically and transcribe in the original language.
+        """
+
+    system_instructions += """
     Return your response as TSV (Tab-Separated Values) with the following columns:
     start\tend\ttext\tspeaker
     
     The 'start' and 'end' columns must follow the format of MM:SS.mmm.
     Timestamps should have milli-second level accuracy.
-    """
-    if language is not None and language != "auto":
-        system_instructions += f"""
-        The text must be translated to {language}.
-        """
-    system_instructions += """
     The 'speaker' column must indicate the speaker's name or use the format 'Speaker X'.
     DO NOT include a header row.
     Each row must represent one segment.
     """
 
-    prompt = "Transcribe the following audio file with correct timestamps"
+    prompt = "Transcribe the following audio file with correct timestamps in the specified language."
 
     # Generate content
     response = google_client.models.generate_content_stream(
@@ -234,6 +243,7 @@ def summarize_content(transcript_segments):
        - The approximate start timestamp in the transcript
        - 2-4 key points that capture the important information in that chapter
 
+    You must return the summary in the same language as the transcript.
     Return your summary in TSV (Tab-Separated Values) format:
     
     OVERVIEW:\t<A concise 2-3 sentence overview of the entire transcript>
@@ -249,7 +259,6 @@ def summarize_content(transcript_segments):
     - The overview should capture the main theme without being too long
     - Chapter titles should be short, descriptive phrases that clearly indicate the topic
     - Key points should be specific and informative, not vague
-    - Use the same language as the transcript
     - Timestamps should be provided as decimal numbers in seconds (e.g., 145.2)
     - If you can't determine a precise timestamp for a point, provide your best estimate
     - Ensure chapter divisions make logical sense based on topic transitions
