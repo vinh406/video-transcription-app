@@ -20,6 +20,8 @@ import {
     MoreVertical,
     RefreshCw,
     Trash2,
+    Clock,
+    AlertCircle,
 } from "lucide-react";
 
 import {
@@ -47,18 +49,28 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-interface MediaItem {
-    id: string; // transcription ID
+// Estimated durations for different services (in minutes)
+const SERVICE_DURATIONS = {
+    whisperx: 5, // WhisperX takes about 5 minutes
+    google: 8, // Google API is faster
+    elevenlabs: 5, // ElevenLabs takes about 4 minutes
+    default: 5, // Default fallback
+};
+
+interface TranscriptionItem {
+    id: string;
     media_id: string;
     file_name: string;
     mime_type: string;
     created_at: string;
     service: string;
     language: string;
-    has_summary: boolean;
+    status?: string;
+    has_summary?: boolean;
 }
 
 interface MediaHistoryProps {
@@ -66,60 +78,132 @@ interface MediaHistoryProps {
     showTitle?: boolean;
 }
 
+// Calculate progress percentage based on elapsed time
+function calculateProgress(job: TranscriptionItem): number {
+    // For pending jobs, return 0
+    if (job.status === "pending") return 0;
+
+    // Get the elapsed time in milliseconds
+    const createdAt = new Date(job.created_at).getTime();
+    const now = new Date().getTime();
+    const elapsedMs = now - createdAt;
+
+    // Convert to minutes
+    const elapsedMinutes = elapsedMs / (1000 * 60);
+
+    // Get estimated duration based on service
+    const estimatedDuration =
+        SERVICE_DURATIONS[job.service as keyof typeof SERVICE_DURATIONS] ||
+        SERVICE_DURATIONS.default;
+
+    // Calculate progress percentage
+    const progress = Math.min(99, (elapsedMinutes / estimatedDuration) * 100);
+
+    return progress;
+}
+
 export function MediaHistory({
     limitCount,
     showTitle = true,
 }: MediaHistoryProps) {
     const [isLoading, setIsLoading] = useState(true);
-    const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+    const [allItems, setAllItems] = useState<TranscriptionItem[]>([]);
+    const [itemsCache, setItemsCache] = useState<TranscriptionItem[]>([]);
+    const [activeFilter, setActiveFilter] = useState<string>("all");
     const navigate = useNavigate();
     const { user } = useAuth();
+
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
-    const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+    const [selectedItem, setSelectedItem] = useState<TranscriptionItem | null>(
+        null
+    );
     const [regenerateService, setRegenerateService] = useState("whisperx");
     const [regenerateLanguage, setRegenerateLanguage] = useState("auto");
     const [isProcessing, setIsProcessing] = useState(false);
 
+    const [progressValues, setProgressValues] = useState<{
+        [key: string]: number;
+    }>({});
+
     useEffect(() => {
         if (!user) {
-            // Redirect to login if not authenticated
             navigate("/login");
             return;
         }
 
-        const fetchMediaHistory = async () => {
+        const fetchAllTranscriptions = async () => {
             try {
                 const response = await getMediaHistory();
 
-                // If response is not an array, it's likely an error
-                if (!Array.isArray(response)) {
-                    console.error("Unexpected response format");
-                    setMediaItems([]);
-                    return;
-                }
+                if (Array.isArray(response)) {
+                    // Store the complete unfiltered response in the cache
+                    setItemsCache(response);
 
-                // Apply limit if provided
-                const items = limitCount
-                    ? response.slice(0, limitCount)
-                    : response;
-                setMediaItems(items);
+                    let transcriptions = response;
+
+                    // Calculate progress for processing items
+                    const newProgressValues: { [key: string]: number } = {};
+                    transcriptions.forEach((job) => {
+                        if (job.status === "processing") {
+                            newProgressValues[job.id] = calculateProgress(job);
+                        } else if (job.status === "pending") {
+                            newProgressValues[job.id] = 0;
+                        }
+                    });
+                    setProgressValues(newProgressValues);
+
+                    // Apply limit if provided
+                    transcriptions = limitCount
+                        ? transcriptions.slice(0, limitCount)
+                        : transcriptions;
+                    setAllItems(transcriptions);
+                }
             } catch (error) {
-                console.error("Failed to fetch media history", error);
-                setMediaItems([]);
+                console.error("Failed to fetch transcriptions", error);
+                setAllItems([]);
+                setItemsCache([]); // Clear cache on error
             } finally {
                 setIsLoading(false);
             }
         };
 
+        fetchAllTranscriptions();
 
-        fetchMediaHistory();
+        // Poll for updates every 5 seconds
+        const intervalId = setInterval(fetchAllTranscriptions, 5000);
+
+        return () => clearInterval(intervalId);
     }, [user, navigate, limitCount]);
 
-    const handleMediaItemClick = async (item: MediaItem) => {
+    // Update progress values every second for processing jobs
+    useEffect(() => {
+        const processingItems = allItems.filter(
+            (item) => item.status === "processing"
+        );
+        if (processingItems.length === 0) return;
+
+        const interval = setInterval(() => {
+            const newProgressValues: { [key: string]: number } = {};
+            processingItems.forEach((job) => {
+                if (job.status === "processing") {
+                    newProgressValues[job.id] = calculateProgress(job);
+                } else if (job.status === "pending") {
+                    newProgressValues[job.id] = 0;
+                }
+            });
+            setProgressValues(newProgressValues);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [allItems]);
+
+    const handleMediaItemClick = async (item: TranscriptionItem) => {
+        // Skip click for non-completed items
+        if (item.status !== "completed") return;
+
         setIsLoading(true);
         try {
-            // Use the transcription ID directly
             const response = await getMediaDetails(item.id);
 
             let mediaType;
@@ -131,7 +215,6 @@ export function MediaHistory({
                     : "video";
             }
 
-            // Navigate to view page with the transcription data
             navigate("/view", {
                 state: {
                     mediaType,
@@ -145,29 +228,10 @@ export function MediaHistory({
             });
         } catch (error) {
             console.error("Failed to fetch transcription details", error);
+            toast.error("Could not load transcription");
         } finally {
             setIsLoading(false);
         }
-    };
-
-    const handleOpenDeleteDialog = (
-        e: React.MouseEvent,
-        item: MediaItem
-    ) => {
-        e.stopPropagation(); // Prevent card click
-        setSelectedItem(item);
-        setShowDeleteDialog(true);
-    };
-
-    const handleOpenRegenerateDialog = (
-        e: React.MouseEvent,
-        item: MediaItem
-    ) => {
-        e.stopPropagation(); // Prevent card click
-        setSelectedItem(item);
-        setRegenerateService("whisperx"); // Default service
-        setRegenerateLanguage("auto"); // Default language
-        setShowRegenerateDialog(true);
     };
 
     const handleDelete = async () => {
@@ -176,10 +240,29 @@ export function MediaHistory({
         setIsProcessing(true);
         try {
             await deleteTranscription(selectedItem.id);
-            // Remove item from list
-            setMediaItems((items) =>
-                items.filter((i) => i.id !== selectedItem.id)
+
+            // Remove the item from cache
+            const updatedCache = itemsCache.filter(
+                (item) => item.id !== selectedItem.id
             );
+            setItemsCache(updatedCache);
+
+            // Update the display items, pulling from cache if needed
+            let updatedItems = allItems.filter(
+                (item) => item.id !== selectedItem.id
+            );
+
+            // If we need to maintain a certain count and have more items in cache
+            if (
+                limitCount &&
+                updatedItems.length < limitCount &&
+                updatedCache.length > limitCount
+            ) {
+                // Get up to limitCount items
+                updatedItems = updatedCache.slice(0, limitCount);
+            }
+
+            setAllItems(updatedItems);
             toast.success("Transcription deleted successfully");
         } catch (error) {
             console.error("Failed to delete transcription", error);
@@ -201,26 +284,35 @@ export function MediaHistory({
                 regenerateService,
                 regenerateLanguage
             );
+            if (!response.error) {
+                toast.success("Transcription regenerated successfully");
+            }
 
-            // Navigate to view page with the new transcription data
-            navigate("/view", {
-                state: {
-                    mediaType:
-                        selectedItem.mime_type === "youtube"
-                            ? "youtube"
-                            : selectedItem.mime_type.startsWith("audio/")
-                            ? "audio"
-                            : "video",
-                    mediaUrl: response.media_url,
-                    isYoutube: response.is_youtube,
-                    transcript: response.data.segments,
-                    fileName: response.file_name,
-                    transcriptionId: response.transcription_id,
-                    summary: response.summary,
-                },
-            });
+            if (selectedItem.status === "failed") {
+                await deleteTranscription(selectedItem.id);
 
-            toast.success("Transcription regenerated successfully");
+                // Remove from cache first
+                const updatedCache = itemsCache.filter(
+                    (item) => item.id !== selectedItem.id
+                );
+                setItemsCache(updatedCache);
+
+                // Then update display items and replenish from cache if needed
+                let updatedItems = allItems.filter(
+                    (item) => item.id !== selectedItem.id
+                );
+
+                if (
+                    limitCount &&
+                    updatedItems.length < limitCount &&
+                    updatedCache.length > limitCount
+                ) {
+                    // Get up to limitCount items
+                    updatedItems = updatedCache.slice(0, limitCount);
+                }
+
+                setAllItems(updatedItems);
+            }
         } catch (error) {
             console.error("Failed to regenerate transcription", error);
             toast.error("Failed to regenerate transcription");
@@ -231,6 +323,45 @@ export function MediaHistory({
         }
     };
 
+    const handleOpenDeleteDialog = (
+        e: React.MouseEvent,
+        item: TranscriptionItem
+    ) => {
+        e.stopPropagation();
+        setSelectedItem(item);
+        setShowDeleteDialog(true);
+    };
+
+    const handleOpenRegenerateDialog = (
+        e: React.MouseEvent,
+        item: TranscriptionItem
+    ) => {
+        e.stopPropagation();
+        setSelectedItem(item);
+        setRegenerateService("whisperx");
+        setRegenerateLanguage("auto");
+        setShowRegenerateDialog(true);
+    };
+
+    // Get items based on active filter
+    const getFilteredItems = () => {
+        if (activeFilter === "all") return allItems;
+        return allItems.filter((item) => item.status === activeFilter);
+    };
+
+    // Count by status
+    const completedCount = allItems.filter(
+        (item) => item.status === "completed"
+    ).length;
+    const processingCount = allItems.filter(
+        (item) => item.status === "processing"
+    ).length;
+    const pendingCount = allItems.filter(
+        (item) => item.status === "pending"
+    ).length;
+    const failedCount = allItems.filter(
+        (item) => item.status === "failed"
+    ).length;
 
     if (isLoading) {
         return (
@@ -240,11 +371,11 @@ export function MediaHistory({
         );
     }
 
-    if (mediaItems.length === 0) {
+    if (allItems.length === 0) {
         return (
             <div className="text-center p-8 border rounded-md bg-muted/10">
                 <p className="text-muted-foreground">
-                    No previous transcriptions found.
+                    No transcriptions found.
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                     Upload a file to get started!
@@ -253,17 +384,104 @@ export function MediaHistory({
         );
     }
 
+    const filteredItems = getFilteredItems();
+
     return (
         <div className="space-y-4">
             {showTitle && (
-                <h2 className="text-xl font-medium">Your Media History</h2>
+                <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-medium">Your Transcriptions</h2>
+                    <div className="flex gap-2">
+                        <Button
+                            variant={
+                                activeFilter === "all" ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => setActiveFilter("all")}
+                        >
+                            All ({allItems.length})
+                        </Button>
+                        {completedCount > 0 && (
+                            <Button
+                                variant={
+                                    activeFilter === "completed"
+                                        ? "default"
+                                        : "outline"
+                                }
+                                size="sm"
+                                onClick={() => setActiveFilter("completed")}
+                            >
+                                Completed ({completedCount})
+                            </Button>
+                        )}
+                        {processingCount > 0 && (
+                            <Button
+                                variant={
+                                    activeFilter === "processing"
+                                        ? "default"
+                                        : "outline"
+                                }
+                                size="sm"
+                                onClick={() => setActiveFilter("processing")}
+                                className="flex items-center gap-1"
+                            >
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Processing ({processingCount})
+                            </Button>
+                        )}
+                        {pendingCount > 0 && (
+                            <Button
+                                variant={
+                                    activeFilter === "pending"
+                                        ? "default"
+                                        : "outline"
+                                }
+                                size="sm"
+                                onClick={() => setActiveFilter("pending")}
+                                className="flex items-center gap-1"
+                            >
+                                <Clock className="h-3 w-3" />
+                                Pending ({pendingCount})
+                            </Button>
+                        )}
+                        {failedCount > 0 && (
+                            <Button
+                                variant={
+                                    activeFilter === "failed"
+                                        ? "default"
+                                        : "outline"
+                                }
+                                size="sm"
+                                onClick={() => setActiveFilter("failed")}
+                                className="flex items-center gap-1 text-red-600"
+                            >
+                                <AlertCircle className="h-3 w-3" />
+                                Failed ({failedCount})
+                            </Button>
+                        )}
+                    </div>
+                </div>
             )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mediaItems.map((item) => (
+                {filteredItems.map((item) => (
                     <div
                         key={item.id}
-                        className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:shadow-lg overflow-hidden cursor-pointer"
-                        onClick={() => handleMediaItemClick(item)}
+                        className={`group relative flex flex-col ${
+                            item.status === "completed" ? "cursor-pointer" : ""
+                        } rounded-lg border overflow-hidden ${
+                            item.status === "failed"
+                                ? "bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900"
+                                : item.status === "pending"
+                                ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900"
+                                : item.status === "processing"
+                                ? "bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800"
+                                : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                        } transition-all duration-300 hover:shadow-lg`}
+                        onClick={() =>
+                            item.status === "completed" &&
+                            handleMediaItemClick(item)
+                        }
                     >
                         {/* Card header with icon, service badge and options menu */}
                         <div className="flex items-center justify-between pl-4 pr-2 py-2 border-b border-gray-100 dark:border-gray-700">
@@ -281,11 +499,11 @@ export function MediaHistory({
                                     }`}
                                 >
                                     {item.mime_type === "youtube" ? (
-                                        <Youtube className="w-6 h-6 text-white" />
+                                        <Youtube className="w-5 h-5 text-white" />
                                     ) : item.mime_type.startsWith("audio/") ? (
-                                        <FileAudio className="w-6 h-6 text-white" />
+                                        <FileAudio className="w-5 h-5 text-white" />
                                     ) : (
-                                        <FileVideo className="w-6 h-6 text-white" />
+                                        <FileVideo className="w-5 h-5 text-white" />
                                     )}
                                 </div>
 
@@ -314,7 +532,7 @@ export function MediaHistory({
                                     ).toLocaleDateString()}
                                 </div>
 
-                                {/* Options menu - stop propagation to prevent card click */}
+                                {/* Options menu */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger
                                         asChild
@@ -356,7 +574,6 @@ export function MediaHistory({
                             </div>
                         </div>
 
-                        {/* Rest of the card content remains the same */}
                         <div className="flex-1 p-4">
                             <h3 className="font-medium text-lg mb-3 line-clamp-2">
                                 {item.file_name}
@@ -374,9 +591,57 @@ export function MediaHistory({
                                         Summary
                                     </div>
                                 )}
-                            </div>
-                        </div>
 
+                                {/* Moved status indicator here */}
+                                {item.status !== "completed" && (
+                                    <div
+                                        className={`
+                                        inline-flex items-center text-xs px-2 py-1 rounded-md
+                                        ${
+                                            item.status === "processing"
+                                                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
+                                                : item.status === "pending"
+                                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200"
+                                                : "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200"
+                                        }
+                                    `}
+                                    >
+                                        {item.status === "processing" ? (
+                                            <>
+                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                                Processing
+                                            </>
+                                        ) : item.status === "pending" ? (
+                                            <>
+                                                <Clock className="w-3 h-3 mr-1" />
+                                                Pending
+                                            </>
+                                        ) : (
+                                            <>
+                                                <AlertCircle className="w-3 h-3 mr-1" />
+                                                Failed
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Progress bar for processing items */}
+                            {item.status === "processing" && (
+                                <div className="flex items-center justify-between gap-2">
+                                    <Progress
+                                        value={progressValues[item.id] || 5}
+                                        className="h-1"
+                                    />
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {Math.round(
+                                            progressValues[item.id] || 0
+                                        )}
+                                        %
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 ))}
             </div>

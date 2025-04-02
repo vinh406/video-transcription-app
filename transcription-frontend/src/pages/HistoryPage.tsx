@@ -3,7 +3,6 @@ import { MediaHistory } from "@/components/MediaHistory";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { ProcessingJobs } from "@/components/ProcessingJobs";
 
 export function HistoryPage() {
     const navigate = useNavigate();
@@ -27,10 +26,6 @@ export function HistoryPage() {
                 </Button>
                 <h1 className="text-2xl font-bold">Media History</h1>
             </div>
-            <div className="mb-6">
-                <ProcessingJobs />
-            </div>
-
             <MediaHistory />
         </div>
     );

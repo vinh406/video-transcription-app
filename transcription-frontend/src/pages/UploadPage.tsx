@@ -6,7 +6,6 @@ import { transcribeFile, transcribeYouTube } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, LogOut, User } from "lucide-react";
-import { ProcessingJobs } from "@/components/ProcessingJobs";
 import { toast } from "sonner";
 
 export function UploadPage() {
@@ -153,7 +152,6 @@ export function UploadPage() {
                     </>
                 </div>
             </div>
-            <ProcessingJobs />
         </div>
     );
 }

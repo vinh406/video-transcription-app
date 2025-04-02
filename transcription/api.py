@@ -273,45 +273,7 @@ def get_user_transcription_history(request):
     user = request.user
     # Get transcriptions for the user's media files
     transcriptions = (
-        Transcription.objects.filter(media_file__user=user, status="completed")
-        .select_related("media_file")
-        .order_by("-created_at")
-    )
-
-    result = []
-    for transcription in transcriptions:
-        media_file = transcription.media_file
-        has_summary = Summary.objects.filter(transcription=transcription).exists()
-
-        # Determine if it's a YouTube file
-        is_youtube = len(media_file.file_hash) == 11
-
-        result.append(
-            {
-                "id": str(transcription.id),
-                "media_id": str(media_file.id),
-                "file_name": media_file.file_name,
-                "mime_type": "youtube" if is_youtube else media_file.mime_type,
-                "created_at": transcription.created_at.isoformat(),
-                "service": transcription.service,
-                "language": transcription.language,
-                "has_summary": has_summary,
-            }
-        )
-
-    return result
-
-@api.get(
-    "/tasks",
-    response={200: List[TranscriptionListSchema]},
-    auth=django_auth,
-)
-def get_running_tasks(request):
-    user = request.user
-    # Get transcriptions for the user's media files
-    transcriptions = (
         Transcription.objects.filter(media_file__user=user)
-        .exclude(status="completed")
         .select_related("media_file")
         .order_by("-created_at")
     )
