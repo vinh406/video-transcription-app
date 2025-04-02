@@ -137,6 +137,18 @@ export async function getMediaHistory() {
     return response.json();
 }
 
+export async function getTasks() {
+    const response = await fetchWithCsrf(
+        `${API_BASE_URL}/transcription/tasks`, // Updated endpoint
+        {
+            method: "GET",
+            credentials: "include",
+        }
+    );
+    return response.json();
+}
+
+
 export async function getMediaDetails(transcriptionId: string) {
     const response = await fetchWithCsrf(
         `${API_BASE_URL}/transcription/${transcriptionId}`, // Updated endpoint
@@ -229,6 +241,21 @@ export async function deleteSummary(
 
     if (!response.ok) {
         throw new Error(`Delete summary failed with status: ${response.status}`);
+    }
+
+    return response.json();
+}
+
+export async function getTranscriptionStatus(transcriptionId: string) {
+    const response = await fetch(
+        `${API_BASE_URL}/transcription/${transcriptionId}/status`,
+        {
+            credentials: "include",
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Failed to get status: ${response.status}`);
     }
 
     return response.json();

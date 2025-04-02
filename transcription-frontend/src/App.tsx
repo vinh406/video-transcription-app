@@ -28,7 +28,7 @@ export default function App() {
                     <Route path="/history" element={<HistoryPage />} />
                 </Routes>
             </BrowserRouter>
-            <Toaster position="bottom-right" />
+            <Toaster position="top-right" />
         </AuthProvider>
     );
 }

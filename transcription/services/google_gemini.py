@@ -14,8 +14,6 @@ if os.getenv("GOOGLE_API_KEY"):
 else:
     print("Warning: GOOGLE_API_KEY not found in environment variables")
 
-model_name = "models/gemini-2.0-flash-thinking-exp"
-
 # File upload function for Google API
 def upload_video(video_file_name):
     video_file = google_client.files.upload(file=video_file_name)
@@ -131,7 +129,7 @@ def process_audio_segment(file_path, language=None):
 
     # Generate content
     response = google_client.models.generate_content_stream(
-        model=model_name,
+        model="models/gemini-2.0-flash-thinking-exp",
         contents=[video, prompt],
         config=types.GenerateContentConfig(
             system_instruction=system_instructions,
@@ -266,7 +264,7 @@ def summarize_content(transcript_segments):
 
     try:
         response = google_client.models.generate_content(
-            model=model_name,
+            model="models/gemini-2.0-flash-lite",
             contents=summarization_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,

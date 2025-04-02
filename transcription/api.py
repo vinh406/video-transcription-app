@@ -9,9 +9,6 @@ from ninja.security import django_auth
 from .services import (
     download_youtube,
     get_youtube_video_id,
-    transcribe_google_api,
-    transcribe_whisperx,
-    transcribe_elevenlabs_api,
     summarize_content,
 )
 from .schemas import (
@@ -23,6 +20,8 @@ from .schemas import (
     TranscriptionListSchema,
 )
 from collections import defaultdict
+from django_q.tasks import async_task
+from .tasks import process_transcription
 
 api = Router()
 
@@ -45,6 +44,7 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
         temp_file_path, mime_type = download_youtube(youtube_url)
     except Exception as e:
         return 400, {"message": f"Invalid YouTube URL: {str(e)}"}
+
     try:
         # Check if we've already processed this YouTube video
         media_file = None
@@ -56,12 +56,22 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             existing = Transcription.objects.filter(
                 media_file=media_file, service=service, language=language
             ).first()
-            if existing:
+            if existing and existing.status == "completed":
                 return 200, {
                     "message": "Found existing transcription",
                     "data": existing.segments,
                     "file_name": video_title,
+                    "transcription_id": str(existing.id),
+                    "status": existing.status,
                 }
+            elif existing:
+                return 200, {
+                    "message": "Transcription already in progress",
+                    "file_name": video_title,
+                    "transcription_id": str(existing.id),
+                    "status": existing.status,
+                }
+
         except MediaFile.DoesNotExist:
             # Create a new MediaFile for this YouTube video
             media_file = MediaFile(
@@ -76,41 +86,41 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
                 open(temp_file_path, "rb"),
                 save=False,
             )
+            media_file.save()
 
-        # Perform transcription based on service
-        result = None
-
-        if service == "google":
-            result = transcribe_google_api(temp_file_path, language=language)
-        elif service == "elevenlabs":
-            result = transcribe_elevenlabs_api(temp_file_path, language=language)
-        else:  # whisperx
-            result = transcribe_whisperx(temp_file_path, language=language)
-
-        media_file.save()
-
-        # Save the transcription result
+        # Create transcription record with pending status
         transcription = Transcription(
             media_file=media_file,
             service=service,
             language=language,
-            segments=result,
+            status="processing",
         )
         transcription.save()
 
+        # Enqueue the task
+        async_task(
+            process_transcription,
+            transcription.id,
+            temp_file_path,
+            media_file.id,
+            service,
+            language,
+            hook="transcription.tasks.process_complete_hook",
+        )
+
         return 200, {
-            "message": "Transcription successful",
-            "data": result,
+            "message": "Transcription queued successfully",
             "file_name": video_title,
             "is_youtube": True,
             "media_url": youtube_url,
             "transcription_id": str(transcription.id),
+            "status": "processing",
         }
-
-    finally:
-        # Clean up temp file
+    except Exception as e:
+        # Clean up temp file in case of error
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
+        return 500, {"message": f"Error processing YouTube video: {str(e)}"}
 
 
 @api.post(
@@ -127,11 +137,12 @@ def transcribe_audio(
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         for chunk in file.chunks():
             temp_audio.write(chunk)
+        temp_file_path = temp_audio.name
 
     try:
         # Calculate file hash
         hasher = hashlib.sha256()
-        with open(temp_audio.name, "rb") as f:
+        with open(temp_file_path, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hasher.update(chunk)
         file_hash = hasher.hexdigest()
@@ -144,13 +155,21 @@ def transcribe_audio(
             existing = Transcription.objects.filter(
                 media_file=media_file, service=service, language=language
             ).first()
-            if existing:
+            if existing and existing.status == "completed":
                 return 200, {
                     "message": "Found existing transcription",
                     "data": existing.segments,
+                    "transcription_id": str(existing.id),
+                    "status": existing.status,
+                }
+            elif existing:
+                return 200, {
+                    "message": "Transcription already in progress",
+                    "transcription_id": str(existing.id),
+                    "status": existing.status,
                 }
         except MediaFile.DoesNotExist:
-            # Upload to S3
+            # Upload to storage
             media_file = MediaFile(
                 file=file,
                 file_name=file.name,
@@ -160,34 +179,35 @@ def transcribe_audio(
             )
             media_file.save()
 
-        # Perform transcription based on service
-        result = None
-
-        if service == "google":
-            result = transcribe_google_api(temp_audio.name, language=language)
-        elif service == "elevenlabs":
-            result = transcribe_elevenlabs_api(temp_audio.name, language=language)
-        else:  # whisperx
-            result = transcribe_whisperx(temp_audio.name, language=language)
-
-        # Save the transcription result
+        # Create transcription record with pending status
         transcription = Transcription(
             media_file=media_file,
             service=service,
             language=language,
-            segments=result,
+            status="processing",
         )
         transcription.save()
 
+        # Enqueue the task
+        async_task(
+            process_transcription,
+            transcription.id,
+            temp_file_path,
+            media_file.id,
+            service,
+            language,
+        )
+
         return 200, {
-            "message": "Transcription successful",
-            "data": result,
+            "message": "Transcription queued successfully",
             "transcription_id": str(transcription.id),
+            "status": "processing",
         }
-    finally:
-        # Clean up temp file
-        if os.path.exists(temp_audio.name):
-            os.remove(temp_audio.name)
+    except Exception as e:
+        # Clean up temp file in case of error
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        raise e
 
 
 @api.post(
@@ -246,7 +266,7 @@ def get_user_transcription_history(request):
     user = request.user
     # Get transcriptions for the user's media files
     transcriptions = (
-        Transcription.objects.filter(media_file__user=user)
+        Transcription.objects.filter(media_file__user=user, status="completed")
         .select_related("media_file")
         .order_by("-created_at")
     )
@@ -269,6 +289,45 @@ def get_user_transcription_history(request):
                 "service": transcription.service,
                 "language": transcription.language,
                 "has_summary": has_summary,
+            }
+        )
+
+    return result
+
+@api.get(
+    "/tasks",
+    response={200: List[TranscriptionListSchema]},
+    auth=django_auth,
+)
+def get_running_tasks(request):
+    user = request.user
+    # Get transcriptions for the user's media files
+    transcriptions = (
+        Transcription.objects.filter(media_file__user=user)
+        .exclude(status="completed")
+        .select_related("media_file")
+        .order_by("-created_at")
+    )
+
+    result = []
+    for transcription in transcriptions:
+        media_file = transcription.media_file
+        has_summary = Summary.objects.filter(transcription=transcription).exists()
+
+        # Determine if it's a YouTube file
+        is_youtube = len(media_file.file_hash) == 11
+
+        result.append(
+            {
+                "id": str(transcription.id),
+                "media_id": str(media_file.id),
+                "file_name": media_file.file_name,
+                "mime_type": "youtube" if is_youtube else media_file.mime_type,
+                "created_at": transcription.created_at.isoformat(),
+                "service": transcription.service,
+                "language": transcription.language,
+                "has_summary": has_summary,
+                "status": transcription.status,
             }
         )
 
@@ -413,42 +472,36 @@ def regenerate_transcription(
                 with media_file.file.open("rb") as source_file:
                     for chunk in source_file.chunks():
                         temp_audio.write(chunk)
-
-            # Perform transcription based on service
-            result = None
-            if service == "google":
-                result = transcribe_google_api(temp_file_path, language=language)
-            elif service == "elevenlabs":
-                result = transcribe_elevenlabs_api(temp_file_path, language=language)
-            else:  # whisperx
-                result = transcribe_whisperx(temp_file_path, language=language)
-
-            # Create a new transcription entry
-            new_transcription = Transcription(
+            
+            # Create transcription record with pending status
+            transcription = Transcription(
                 media_file=media_file,
                 service=service,
                 language=language,
-                segments=result,
+                status="processing",
             )
-            new_transcription.save()
+            transcription.save()
+
+            # Enqueue the task
+            async_task(
+                process_transcription,
+                transcription.id,
+                temp_file_path,
+                media_file.id,
+                service,
+                language,
+            )
 
             return 200, {
-                "message": "Transcription regenerated successfully",
-                "data": result,
-                "file_name": media_file.file_name,
-                "transcription_id": str(new_transcription.id),
-                "service": service,
-                "language": language,
-                "is_youtube": is_youtube,
-                "media_url": media_file.file_hash
-                if is_youtube
-                else media_file.file.url,
+                "message": "Transcription queued successfully",
+                "transcription_id": str(transcription.id),
+                "status": "processing",
             }
-
-        finally:
-            # Clean up temp file
-            if temp_file_path and os.path.exists(temp_file_path):
+        except Exception as e:
+            # Clean up temp file in case of error
+            if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
+            raise e
 
     except Transcription.DoesNotExist:
         return 404, {"message": "Transcription not found"}
@@ -479,3 +532,30 @@ def delete_summary(request, transcription_id: str, summary_id: str):
         return 404, {"detail": "Transcription not found"}
     except Summary.DoesNotExist:
         return 404, {"detail": "Summary not found"}
+
+
+@api.get(
+    "/{transcription_id}/status",
+    response={200: dict, 404: ErrorResponse},
+)
+def get_transcription_status(request, transcription_id: str):
+    """
+    Get the current status of a transcription job
+    """
+    try:
+        transcription = Transcription.objects.get(id=transcription_id)
+
+        response = {
+            "status": transcription.status,
+            "message": f"Transcription is {transcription.status}",
+        }
+
+        if transcription.status == "completed":
+            response["data"] = transcription.segments
+        elif transcription.status == "failed":
+            response["error"] = transcription.error_message
+
+        return 200, response
+
+    except Transcription.DoesNotExist:
+        return 404, {"message": "Transcription not found"}

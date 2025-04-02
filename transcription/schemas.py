@@ -66,6 +66,7 @@ class TranscriptionResult(Schema):
     is_youtube: bool = False
     summary: Optional[List[SummaryData]] = None
     transcription_id: Optional[str] = None
+    status: Optional[str] = None
 
 
 class SummarizeRequest(Schema):
@@ -84,6 +85,7 @@ class TranscriptionListSchema(Schema):
     service: str
     language: str
     has_summary: bool
+    status: Optional[str] = None
 
 class ErrorResponse(Schema):
     message: str

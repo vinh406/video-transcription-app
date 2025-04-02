@@ -24,8 +24,18 @@ class Transcription(models.Model):
     language = models.CharField(max_length=10)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # New fields for tracking status
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("processing", "Processing"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    error_message = models.TextField(blank=True, null=True)
+
     # Store the full transcription data as JSON
-    segments = models.JSONField()
+    segments = models.JSONField(null=True, blank=True)  # Allow null for pending tasks
 
     def __str__(self):
         return f"{self.media_file.file_name} - {self.service}"

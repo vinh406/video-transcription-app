@@ -6,6 +6,8 @@ import { transcribeFile, transcribeYouTube } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, LogOut, User } from "lucide-react";
+import { ProcessingJobs } from "@/components/ProcessingJobs";
+import { toast } from "sonner";
 
 export function UploadPage() {
     const [isTranscribing, setIsTranscribing] = useState(false);
@@ -28,7 +30,8 @@ export function UploadPage() {
 
             // Call API for transcription
             const response = await transcribeFile(file, service, language);
-
+            toast.success("Transcription started successfully!");
+            
             // Navigate to view page with state
             navigate("/view", {
                 state: {
@@ -59,7 +62,8 @@ export function UploadPage() {
                 service,
                 language
             );
-
+            toast.success("Transcription started successfully!");
+            
             navigate("/view", {
                 state: {
                     mediaType: "youtube",
@@ -71,7 +75,7 @@ export function UploadPage() {
                 },
             });
         } catch (error) {
-            console.error("YouTube transcription failed:", error);
+            console.error("Transcription failed:", error);
         } finally {
             setIsTranscribing(false);
         }
@@ -149,6 +153,7 @@ export function UploadPage() {
                     </>
                 </div>
             </div>
+            <ProcessingJobs />
         </div>
     );
 }
