@@ -48,10 +48,10 @@ export default function VideoLayout({
     };
 
     return (
-        <div className="flex flex-col">
-            <div className="flex-1 flex h-full">
-                <div className="w-3/5 h-155 flex flex-col">
-                    <div className="w-full aspect-video">
+        <div className="flex flex-col h-screen md:h-[calc(100vh-4rem)]">
+            <div className="flex flex-1 overflow-hidden">
+                <div className="w-3/5 flex flex-col overflow-hidden">
+                    <div className="w-full aspect-video bg-black">
                         <MediaPlayer
                             src={videoUrl}
                             type={isYoutube ? "youtube" : "video"}
@@ -60,7 +60,7 @@ export default function VideoLayout({
                         />
                     </div>
                     {showSummary && (
-                        <div className="flex-1 overflow-y-auto">
+                        <div className="flex-1 overflow-auto">
                             <div className="p-4">
                                 <TranscriptPanel
                                     transcript={transcript}
@@ -71,9 +71,10 @@ export default function VideoLayout({
                         </div>
                     )}
                 </div>
-                <div className="w-2/5 h-155 flex flex-col border-l">
+
+                <div className="w-2/5 flex flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700">
                     {!showSummary ? (
-                        <div className="flex-1 overflow-y-auto">
+                        <div className="flex-1 overflow-auto">
                             <div className="flex flex-col p-4 gap-4">
                                 <SummaryPanel
                                     summaries={summaries}
@@ -90,7 +91,7 @@ export default function VideoLayout({
                             </div>
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-y-auto">
+                        <div className="flex-1 overflow-auto">
                             <div className="p-4">
                                 <SummaryPanel
                                     summaries={summaries}

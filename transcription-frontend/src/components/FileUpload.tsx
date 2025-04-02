@@ -82,7 +82,7 @@ export function FileUpload({
                 {inputType === "file" ? (
                     <div
                         className={cn(
-                            "border-2 border-dashed rounded-lg p-6 cursor-pointer flex flex-col items-center justify-center min-w-64",
+                            "border-2 border-dashed rounded-lg p-6 cursor-pointer flex flex-col items-center justify-center w-76 h-28",
                             file ? "border-primary" : "border-muted",
                             "hover:border-primary transition-colors"
                         )}
@@ -99,14 +99,14 @@ export function FileUpload({
                             className="hidden"
                         />
                         <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground w-full truncate">
                             {file
                                 ? file.name
                                 : "Drop media file here or click to browse"}
                         </p>
                     </div>
                 ) : (
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-[200px]">
                         <label className="text-sm font-medium mb-1 block">
                             YouTube URL
                         </label>

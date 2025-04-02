@@ -14,7 +14,7 @@ export function HistoryPage() {
     }
 
     return (
-        <div className="container mx-auto max-w-4xl py-8">
+        <div className="container mx-auto max-w-4xl p-8">
             <div className="flex items-center gap-4 mb-6">
                 <Button
                     variant="outline"

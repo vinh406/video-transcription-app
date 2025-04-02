@@ -6,7 +6,6 @@ import {
     deleteTranscription,
     regenerateTranscription,
 } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { getLanguageName, languageOptions } from "@/lib/languages";
 import { getServiceName, serviceOptions } from "@/lib/services";
 
@@ -111,7 +110,6 @@ export function MediaHistory({
     const [itemsCache, setItemsCache] = useState<TranscriptionItem[]>([]);
     const [activeFilter, setActiveFilter] = useState<string>("all");
     const navigate = useNavigate();
-    const { user } = useAuth();
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
@@ -127,10 +125,6 @@ export function MediaHistory({
     }>({});
 
     useEffect(() => {
-        if (!user) {
-            navigate("/login");
-            return;
-        }
 
         const fetchAllTranscriptions = async () => {
             try {
@@ -174,7 +168,7 @@ export function MediaHistory({
         const intervalId = setInterval(fetchAllTranscriptions, 5000);
 
         return () => clearInterval(intervalId);
-    }, [user, navigate, limitCount]);
+    }, [navigate, limitCount]);
 
     // Update progress values every second for processing jobs
     useEffect(() => {
@@ -453,7 +447,7 @@ export function MediaHistory({
                                 }
                                 size="sm"
                                 onClick={() => setActiveFilter("failed")}
-                                className="flex items-center gap-1 text-red-600"
+                                className="flex items-center gap-1"
                             >
                                 <AlertCircle className="h-3 w-3" />
                                 Failed ({failedCount})

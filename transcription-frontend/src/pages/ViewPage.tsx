@@ -77,17 +77,17 @@ export function ViewPage() {
 
     return (
         <div className="h-screen flex flex-col">
-            <header className="flex items-center justify-between border-b p-4">
+            <header className="items-center justify-between border-b p-4 hidden md:flex">
                 <div className="flex items-center space-x-4">
                     <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => navigate("/")}
+                        onClick={() => navigate(-1)}
                         title="Back to upload"
                     >
                         <ArrowLeft size={18} />
                     </Button>
-                    <h1 className="text-xl font-medium">{fileName}</h1>
+                    <h1 className="text-xl font-medium truncate">{fileName}</h1>
                 </div>
 
                 <Button

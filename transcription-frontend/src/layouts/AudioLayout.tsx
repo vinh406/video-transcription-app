@@ -47,13 +47,11 @@ export default function AudioLayout({
     };
 
     return (
-        <div className="flex-1 flex flex-col relative">
-            {/* Main content area */}
+        <div className="flex flex-col h-screen md:h-[calc(100vh-4rem)]">
             <div className="flex-1 flex overflow-hidden">
-                {/* Content layout remains unchanged */}
                 {showSummary ? (
                     <>
-                        <div className="flex-1 h-140 overflow-auto border-r">
+                        <div className="flex-1 overflow-auto border-r">
                             <div className="p-4">
                                 <TranscriptPanel
                                     transcript={transcript}
@@ -62,7 +60,7 @@ export default function AudioLayout({
                                 />
                             </div>
                         </div>
-                        <div className="w-2/5 h-140 overflow-auto">
+                        <div className="w-2/5 overflow-auto">
                             <div className="p-4">
                                 <SummaryPanel
                                     summaries={summaries}
@@ -75,7 +73,7 @@ export default function AudioLayout({
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 h-140 overflow-auto">
+                    <div className="flex-1 overflow-auto">
                         <div className="p-4 flex flex-col gap-4">
                             <SummaryPanel
                                 summaries={summaries}
@@ -93,9 +91,7 @@ export default function AudioLayout({
                     </div>
                 )}
             </div>
-
-            {/* Fixed media player at bottom */}
-            <div className="h-20 bg-zinc-900 border-t border-zinc-800 fixed bottom-0 left-0 right-0">
+            <div className="h-18 bg-zinc-900 border-t border-zinc-800">
                 <MediaPlayer
                     src={audioUrl}
                     type="audio"
@@ -103,9 +99,6 @@ export default function AudioLayout({
                     ref={mediaPlayerRef}
                 />
             </div>
-
-            {/* Space to ensure content isn't covered by fixed player */}
-            <div className="h-20"></div>
         </div>
     );
 }
