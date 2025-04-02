@@ -160,7 +160,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Django Q2 settings
 Q_CLUSTER = {
-    "name": "transcription_queue",
+    "name": "default",
     "workers": 4,
     "recycle": 500,
     "timeout": 1800,  # 1 hour timeout since transcriptions can take time
@@ -170,9 +170,15 @@ Q_CLUSTER = {
     "queue_limit": 500,
     "cpu_affinity": 1,
     "label": "Django Q",
-    "redis": {
-        "host": "localhost",
-        "port": 6379,
-        "db": 0,
+    # "redis": {
+    #     "host": "localhost",
+    #     "port": 6379,
+    #     "db": 0,
+    # },
+    "orm": "default",
+    "ALT_CLUSTERS": {
+        "whisperx": {
+            "workers": 1,
+        }
     },
 }

@@ -30,6 +30,10 @@ def process_transcription(
                     for chunk in source_file.chunks():
                         temp_audio.write(chunk)
 
+        # Mark transcription as in progress
+        transcription.status = "processing"
+        transcription.save()
+        
         # Perform transcription based on service
         try:
             result = None

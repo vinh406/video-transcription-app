@@ -11,6 +11,8 @@ import {
     Youtube,
     AlertCircle,
     RefreshCw,
+    Clock,
+    Trash2,
 } from "lucide-react";
 import {
     Accordion,
@@ -48,6 +50,9 @@ const SERVICE_DURATIONS = {
 
 // Calculate progress percentage based on elapsed time
 function calculateProgress(job: ProcessingJob): number {
+    // For pending jobs, return 0
+    if (job.status === "pending") return 0;
+
     // Get the elapsed time in milliseconds
     const createdAt = new Date(job.created_at).getTime();
     const now = new Date().getTime();
@@ -62,7 +67,7 @@ function calculateProgress(job: ProcessingJob): number {
         SERVICE_DURATIONS.default;
 
     // Calculate progress percentage
-    const progress = Math.min(100, (elapsedMinutes / estimatedDuration) * 100);
+    const progress = Math.min(99, (elapsedMinutes / estimatedDuration) * 100);
 
     return progress;
 }
@@ -71,6 +76,9 @@ export function ProcessingJobs() {
     const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [retryingJobs, setRetryingJobs] = useState<{
+        [key: string]: boolean;
+    }>({});
+    const [deletingJobs, setDeletingJobs] = useState<{
         [key: string]: boolean;
     }>({});
     const [progressValues, setProgressValues] = useState<{
@@ -118,6 +126,8 @@ export function ProcessingJobs() {
                 response.forEach((job) => {
                     if (job.status === "processing") {
                         newProgressValues[job.id] = calculateProgress(job);
+                    } else if (job.status === "pending") {
+                        newProgressValues[job.id] = 0;
                     }
                 });
                 setProgressValues(newProgressValues);
@@ -138,6 +148,8 @@ export function ProcessingJobs() {
             processingJobs.forEach((job) => {
                 if (job.status === "processing") {
                     newProgressValues[job.id] = calculateProgress(job);
+                } else if (job.status === "pending") {
+                    newProgressValues[job.id] = 0;
                 }
             });
             setProgressValues(newProgressValues);
@@ -156,6 +168,39 @@ export function ProcessingJobs() {
 
         return () => clearInterval(intervalId);
     }, []);
+
+    const handleDeleteJob = async (
+        job: ProcessingJob,
+        e: React.MouseEvent
+    ) => {
+        e.stopPropagation(); // Prevent accordion toggle
+
+        if (deletingJobs[job.id]) return; // Prevent double clicks
+
+        try {
+            // Mark this job as deleting
+            setDeletingJobs((prev) => ({ ...prev, [job.id]: true }));
+
+            // Delete the failed job
+            await deleteTranscription(job.id);
+
+            // Refresh the job list
+            fetchProcessingJobs();
+
+            toast.success("Transcription job deleted successfully");
+        } catch (error) {
+            console.error("Failed to delete transcription job", error);
+            toast.error("Failed to delete transcription job");
+        } finally {
+            // Remove the deleting status
+            setDeletingJobs((prev) => {
+                const updated = { ...prev };
+                delete updated[job.id];
+                return updated;
+            });
+        }
+    };
+
 
     // Function to handle retrying a failed job
     const handleRetryJob = async (job: ProcessingJob, e: React.MouseEvent) => {
@@ -194,6 +239,9 @@ export function ProcessingJobs() {
     const processingCount = processingJobs.filter(
         (job) => job.status === "processing"
     ).length;
+    const pendingCount = processingJobs.filter(
+        (job) => job.status === "pending"
+    ).length;
     const failedCount = processingJobs.filter(
         (job) => job.status === "failed"
     ).length;
@@ -225,7 +273,13 @@ export function ProcessingJobs() {
                                     {isLoading ? (
                                         "Processing Jobs (...)"
                                     ) : (
-                                        <span>
+                                        <span className="flex flex-wrap gap-2">
+                                            {pendingCount > 0 && (
+                                                <span className="text-blue-600 dark:text-blue-400">
+                                                    <Clock className="inline h-4 w-4 mr-1" />
+                                                    Pending ({pendingCount})
+                                                </span>
+                                            )}
                                             {processingCount > 0 && (
                                                 <span className="text-amber-700 dark:text-amber-400">
                                                     <Loader2 className="inline h-4 w-4 mr-1 animate-spin text-amber-600" />
@@ -234,7 +288,7 @@ export function ProcessingJobs() {
                                                 </span>
                                             )}
                                             {failedCount > 0 && (
-                                                <span className="text-red-600 dark:text-red-400 ml-1">
+                                                <span className="text-red-600 dark:text-red-400">
                                                     <AlertCircle className="inline h-4 w-4 mr-1" />
                                                     Failed ({failedCount})
                                                 </span>
@@ -257,6 +311,8 @@ export function ProcessingJobs() {
                                             className={`bg-white dark:bg-black/20 border ${
                                                 job.status === "failed"
                                                     ? "border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-900/10"
+                                                    : job.status === "pending"
+                                                    ? "border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-900/10"
                                                     : "border-amber-100 dark:border-amber-900"
                                             } p-2 w-full`}
                                         >
@@ -295,61 +351,50 @@ export function ProcessingJobs() {
                                                             ).toLocaleTimeString()}
                                                         </span>
                                                     </div>
-                                                    <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+
+                                                    <div className="flex items-center justify-between w-full mt-1">
+                                                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground flex-1 min-w-0">
+                                                            {job.status ===
+                                                            "failed" ? (
+                                                                <AlertCircle className="w-3 h-3 text-red-500 shrink-0" />
+                                                            ) : job.status ===
+                                                              "pending" ? (
+                                                                <Clock className="w-3 h-3 text-blue-500 shrink-0" />
+                                                            ) : null}
+                                                            <span
+                                                                className={`truncate ${
+                                                                    job.status ===
+                                                                    "failed"
+                                                                        ? "text-red-500"
+                                                                        : job.status ===
+                                                                          "pending"
+                                                                        ? "text-blue-500"
+                                                                        : ""
+                                                                }`}
+                                                            >
+                                                                {getServiceName(
+                                                                    job.service
+                                                                )}{" "}
+                                                                |{" "}
+                                                                {getLanguageName(
+                                                                    job.language
+                                                                )}
+                                                                {job.status ===
+                                                                    "failed" &&
+                                                                    " • Failed"}
+                                                                {job.status ===
+                                                                    "pending" &&
+                                                                    " • Pending"}
+                                                            </span>
+                                                        </div>
+
                                                         {job.status ===
                                                             "failed" && (
-                                                            <AlertCircle className="w-3 h-3 text-red-500" />
-                                                        )}
-                                                        <span
-                                                            className={
-                                                                job.status ===
-                                                                "failed"
-                                                                    ? "text-red-500"
-                                                                    : ""
-                                                            }
-                                                        >
-                                                            {getServiceName(
-                                                                job.service
-                                                            )}{" "}
-                                                            |{" "}
-                                                            {getLanguageName(
-                                                                job.language
-                                                            )}
-                                                            {job.status ===
-                                                                "failed" &&
-                                                                " • Failed"}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between mt-1">
-                                                        {job.status !==
-                                                        "failed" ? (
-                                                            <>
-                                                                <Progress
-                                                                    className="h-1 flex-1"
-                                                                    value={
-                                                                        progressValues[
-                                                                            job
-                                                                                .id
-                                                                        ] || 5
-                                                                    }
-                                                                />
-                                                                <span className="text-[9px] text-muted-foreground ml-1 w-7 text-right">
-                                                                    {Math.round(
-                                                                        progressValues[
-                                                                            job
-                                                                                .id
-                                                                        ] || 0
-                                                                    )}
-                                                                    %
-                                                                </span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <div className="h-1 flex-1 bg-red-200 dark:bg-red-900/30 rounded-full" />
+                                                            <div className="flex items-center gap-1">
                                                                 <Button
                                                                     size="sm"
                                                                     variant="ghost"
-                                                                    className="h-5 px-2 text-[10px] ml-1 text-red-600 hover:text-red-700 hover:bg-red-100"
+                                                                    className="h-4 px-1.5 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-100"
                                                                     onClick={(
                                                                         e
                                                                     ) =>
@@ -362,6 +407,10 @@ export function ProcessingJobs() {
                                                                         retryingJobs[
                                                                             job
                                                                                 .id
+                                                                        ] ||
+                                                                        deletingJobs[
+                                                                            job
+                                                                                .id
                                                                         ]
                                                                     }
                                                                 >
@@ -371,14 +420,68 @@ export function ProcessingJobs() {
                                                                         <Loader2 className="h-3 w-3 animate-spin" />
                                                                     ) : (
                                                                         <>
-                                                                            <RefreshCw className="h-3 w-3 mr-1" />
-                                                                            Retry
+                                                                            <RefreshCw className="h-3 w-3 mr-0.5" />
                                                                         </>
                                                                     )}
                                                                 </Button>
-                                                            </>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-4 px-1.5 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-100"
+                                                                    onClick={(
+                                                                        e
+                                                                    ) =>
+                                                                        handleDeleteJob(
+                                                                            job,
+                                                                            e
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        retryingJobs[
+                                                                            job
+                                                                                .id
+                                                                        ] ||
+                                                                        deletingJobs[
+                                                                            job
+                                                                                .id
+                                                                        ]
+                                                                    }
+                                                                >
+                                                                    {deletingJobs[
+                                                                        job.id
+                                                                    ] ? (
+                                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                                    ) : (
+                                                                        <>
+                                                                            <Trash2 className="h-3 w-3 mr-0.5" />
+                                                                        </>
+                                                                    )}
+                                                                </Button>
+                                                            </div>
                                                         )}
                                                     </div>
+
+                                                    {job.status ===
+                                                        "processing" && (
+                                                        <div className="flex items-center mt-1">
+                                                            <Progress
+                                                                className="h-1 flex-1"
+                                                                value={
+                                                                    progressValues[
+                                                                        job.id
+                                                                    ] || 5
+                                                                }
+                                                            />
+                                                            <span className="text-[9px] text-muted-foreground ml-1 w-7 text-right">
+                                                                {Math.round(
+                                                                    progressValues[
+                                                                        job.id
+                                                                    ] || 0
+                                                                )}
+                                                                %
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

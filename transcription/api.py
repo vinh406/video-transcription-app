@@ -93,9 +93,12 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             media_file=media_file,
             service=service,
             language=language,
-            status="processing",
+            status="pending",
         )
         transcription.save()
+
+        # Determine task group based on service
+        task_group = "whisperx" if service == "whisperx" else "default"
 
         # Enqueue the task
         async_task(
@@ -105,7 +108,7 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             media_file.id,
             service,
             language,
-            hook="transcription.tasks.process_complete_hook",
+            cluster=task_group,
         )
 
         return 200, {
@@ -188,6 +191,9 @@ def transcribe_audio(
         )
         transcription.save()
 
+        # Determine task group based on service
+        task_group = "whisperx" if service == "whisperx" else "default"
+
         # Enqueue the task
         async_task(
             process_transcription,
@@ -196,6 +202,7 @@ def transcribe_audio(
             media_file.id,
             service,
             language,
+            group=task_group,
         )
 
         return 200, {
@@ -482,6 +489,9 @@ def regenerate_transcription(
             )
             transcription.save()
 
+            # Determine task group based on service
+            task_group = "whisperx" if service == "whisperx" else "default"
+
             # Enqueue the task
             async_task(
                 process_transcription,
@@ -490,6 +500,7 @@ def regenerate_transcription(
                 media_file.id,
                 service,
                 language,
+                group=task_group
             )
 
             return 200, {
