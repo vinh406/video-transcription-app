@@ -187,7 +187,7 @@ def transcribe_audio(
             media_file=media_file,
             service=service,
             language=language,
-            status="processing",
+            status="pending",
         )
         transcription.save()
 
@@ -447,7 +447,7 @@ def regenerate_transcription(
                 media_file=media_file,
                 service=service,
                 language=language,
-                status="processing",
+                status="pending",
             )
             transcription.save()
 

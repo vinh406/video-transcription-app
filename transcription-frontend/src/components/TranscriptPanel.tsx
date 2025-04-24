@@ -73,7 +73,7 @@ export function TranscriptPanel({
 
                         <div>
                             {segment.words ? (
-                                <div className="space-x-1">
+                                <div>
                                     {segment.words.map((word, i) => (
                                         <span
                                             key={i}

@@ -51,7 +51,7 @@ export default function VideoLayout({
         <div className="flex flex-col h-screen md:h-[calc(100vh-4rem)]">
             <div className="flex flex-1 overflow-hidden">
                 <div className="w-3/5 flex flex-col overflow-hidden">
-                    <div className="w-full aspect-video bg-black">
+                    <div className="w-full aspect-video bg-black mx-auto">
                         <MediaPlayer
                             src={videoUrl}
                             type={isYoutube ? "youtube" : "video"}

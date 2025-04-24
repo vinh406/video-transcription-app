@@ -109,28 +109,22 @@ def process_audio_segment(file_path, language=None):
         IMPORTANT: Transcribe the audio AND OUTPUT THE TRANSCRIPTION IN {language.upper()} LANGUAGE.
         If the audio is in a different language, you must both recognize and translate to {language}.
         """
-    else:
-        system_instructions += """
-        Detect the language automatically and transcribe in the original language.
-        """
 
     system_instructions += """
     Return your response as TSV (Tab-Separated Values) with the following columns:
     start\tend\ttext\tspeaker
     
-    The 'start' and 'end' columns must follow the format of MM:SS.mmm.
+    The 'start' and 'end' columns must follow the format of MM:SS:mmm.
     Timestamps should have milli-second level accuracy.
     The 'speaker' column must indicate the speaker's name or use the format 'Speaker X'.
-    DO NOT include a header row.
+    You MUST include a header row.
     Each row must represent one segment.
     """
 
-    prompt = "Transcribe the following audio file with correct timestamps in the specified language."
-
     # Generate content
     response = google_client.models.generate_content_stream(
-        model="models/gemini-2.0-flash-thinking-exp",
-        contents=[video, prompt],
+        model="gemini-2.5-flash-preview-04-17",
+        contents=[video],
         config=types.GenerateContentConfig(
             system_instruction=system_instructions,
         ),
@@ -185,23 +179,21 @@ def process_audio_segment(file_path, language=None):
 
 def parse_timestamp(timestamp_str):
     """
-    Convert a timestamp string in MM:SS.mmm format to seconds (float)
+    Convert a timestamp string in MM:SS:mmm format to seconds (float)
 
     Args:
-        timestamp_str (str): Timestamp in MM:SS.mmm format
+        timestamp_str (str): Timestamp in MM:SS:mmm format
 
     Returns:
         float: Timestamp in seconds
     """
     parts = timestamp_str.split(":")
-    if len(parts) != 2:
+    if len(parts) != 3:
         raise ValueError(f"Invalid timestamp format: {timestamp_str}")
 
     minutes = int(parts[0])
-    seconds_parts = parts[1].split(".")
-
-    seconds = int(seconds_parts[0])
-    milliseconds = int(seconds_parts[1]) if len(seconds_parts) > 1 else 0
+    seconds = int(parts[1])
+    milliseconds = int(parts[2])
 
     # Convert to seconds
     total_seconds = minutes * 60 + seconds + milliseconds / 1000
@@ -268,8 +260,6 @@ def summarize_content(transcript_segments):
             contents=summarization_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
-                max_output_tokens=64000,
-                temperature=0.1,  # Lower temperature for more structured output
             ),
         )
 
@@ -330,9 +320,6 @@ def summarize_content(transcript_segments):
                     except ValueError:
                         # If timestamp can't be converted, add point without timestamp
                         current_chapter["points"].append({"text": point_text})
-            print(
-                f"Summary generated successfully: {summary_data}"
-            )
             return summary_data
 
         except Exception as e:
