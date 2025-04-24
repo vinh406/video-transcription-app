@@ -112,10 +112,13 @@ STORAGES = {
     },
 }
 
-AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
-AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
-AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "us-east-1")
+AWS_S3_ENDPOINT_URL = (
+    f"https://{os.environ.get('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com"
+)
+AWS_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.environ.get("R2_REGION")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
