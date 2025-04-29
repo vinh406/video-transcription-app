@@ -28,7 +28,8 @@ dependencies = [
     "soundfile>=0.13.1",
     "torch==2.3.1",
     "torchaudio==2.3.1",
-    "whisperx>=3.3.2",
+    "whisperx==3.3.1",
+    "ctranslate2==4.4.0",
 ]
 
 [[tool.uv.index]]
