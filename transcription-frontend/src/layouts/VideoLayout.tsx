@@ -26,6 +26,7 @@ export default function VideoLayout({
 }: VideoLayoutProps) {
     const [currentTime, setCurrentTime] = useState(0);
     const [showSummary, setShowSummary] = useState(summaries ? true : false);
+    const [transcriptUnderSummary, setTranscriptUnderSummary] = useState(false);
     const mediaPlayerRef = useRef<MediaPlayerHandle>(null);
 
     const handleTimeUpdate = (time: number) => {
@@ -47,6 +48,10 @@ export default function VideoLayout({
         }
     };
 
+    const toggleTranscriptPosition = () => {
+        setTranscriptUnderSummary(!transcriptUnderSummary);
+    };
+
     return (
         <div className="flex flex-col h-screen md:h-[calc(100vh-4rem)]">
             <div className="flex flex-1 overflow-hidden">
@@ -59,7 +64,7 @@ export default function VideoLayout({
                             ref={mediaPlayerRef}
                         />
                     </div>
-                    {showSummary && (
+                    {showSummary && !transcriptUnderSummary && (
                         <div className="flex-1 overflow-auto">
                             <div className="p-4">
                                 <TranscriptPanel
@@ -73,36 +78,30 @@ export default function VideoLayout({
                 </div>
 
                 <div className="w-2/5 flex flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700">
-                    {!showSummary ? (
-                        <div className="flex-1 overflow-auto">
-                            <div className="flex flex-col p-4 gap-4">
-                                <SummaryPanel
-                                    summaries={summaries}
-                                    isLoading={isSummarizing}
-                                    onTimestampClick={handleSeek}
-                                    onSummarize={handleSummarize}
-                                    onDeleteSummary={handleDeleteSummary}
-                                />
-                                <TranscriptPanel
-                                    transcript={transcript}
-                                    currentTime={currentTime}
-                                    onSeek={handleSeek}
-                                />
-                            </div>
+                    <div className="flex-1 overflow-auto">
+                        <div className="flex flex-col p-4 gap-4">
+                            <SummaryPanel
+                                summaries={summaries}
+                                isLoading={isSummarizing}
+                                onTimestampClick={handleSeek}
+                                onSummarize={handleSummarize}
+                                onDeleteSummary={handleDeleteSummary}
+                                onToggleTranscriptPosition={
+                                    toggleTranscriptPosition
+                                }
+                                transcriptUnderSummary={transcriptUnderSummary}
+                            />
+                            {(transcriptUnderSummary || !showSummary) && (
+                                <div className="border-t">
+                                    <TranscriptPanel
+                                        transcript={transcript}
+                                        currentTime={currentTime}
+                                        onSeek={handleSeek}
+                                    />
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <div className="flex-1 overflow-auto">
-                            <div className="p-4">
-                                <SummaryPanel
-                                    summaries={summaries}
-                                    isLoading={isSummarizing}
-                                    onTimestampClick={handleSeek}
-                                    onSummarize={handleSummarize}
-                                    onDeleteSummary={handleDeleteSummary}
-                                />
-                            </div>
-                        </div>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>

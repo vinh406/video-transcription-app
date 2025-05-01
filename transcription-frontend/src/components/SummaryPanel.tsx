@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { SummaryData } from "@/types/summary";
 import { formatTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner"; // Import toast
+import { toast } from "sonner";
 import {
     Accordion,
     AccordionContent,
@@ -18,6 +18,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { SummaryPanelHeader } from "@/components/SummaryPanelHeader";
 
 interface SummaryPanelProps {
     summaries: SummaryData[];
@@ -25,6 +26,8 @@ interface SummaryPanelProps {
     onTimestampClick?: (time: number) => void;
     onSummarize?: () => void;
     onDeleteSummary?: (summaryId: string) => Promise<void>;
+    onToggleTranscriptPosition?: () => void;
+    transcriptUnderSummary?: boolean;
 }
 
 export function SummaryPanel({
@@ -33,6 +36,8 @@ export function SummaryPanel({
     onTimestampClick,
     onSummarize,
     onDeleteSummary,
+    onToggleTranscriptPosition,
+    transcriptUnderSummary,
 }: SummaryPanelProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [activeTab, setActiveTab] = useState(0);
@@ -46,7 +51,7 @@ export function SummaryPanel({
             setLocalSummaries(summaries);
         }
     }, [summaries, isDeleting]);
-    
+
     const handlePrevTab = () => {
         setActiveTab((prev) => (prev > 0 ? prev - 1 : prev));
     };
@@ -126,65 +131,20 @@ export function SummaryPanel({
         );
     }
 
-    // Header with regenerate button and compact pagination
-    const panelHeader = (
-        <div className="mb-4 flex justify-between items-center">
-            <div className="flex items-center">
-                {localSummaries.length > 1 ? (
-                    <div className="flex items-center gap-1">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handlePrevTab}
-                            disabled={activeTab === 0}
-                            className="h-8 w-8"
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-
-                        <span className="text-sm">
-                            {activeTab + 1}/{localSummaries.length}
-                        </span>
-
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleNextTab}
-                            disabled={activeTab === localSummaries.length - 1}
-                            className="h-8 w-8"
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleDeleteClick}
-                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                            title="Delete summary"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </div>
-                ) : (
-                    <div></div> // Empty div for flex spacing when only one summary
-                )}
-            </div>
-
-            {onSummarize && (
-                <Button
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={onSummarize}
-                    disabled={isLoading}
-                >
-                    Regenerate Summary
-                </Button>
-            )}
-        </div>
-    );
-
     const content = (
         <>
-            {panelHeader}
+            <SummaryPanelHeader
+                summariesCount={localSummaries.length}
+                activeTab={activeTab}
+                isLoading={isLoading}
+                onPrevTab={handlePrevTab}
+                onNextTab={handleNextTab}
+                onDelete={handleDeleteClick}
+                onSummarize={onSummarize}
+                onToggleTranscriptPosition={onToggleTranscriptPosition}
+                transcriptUnderSummary={transcriptUnderSummary}
+            />
+
             {localSummaries.length > 0 && (
                 <SummaryContent
                     summary={localSummaries[activeTab]}
