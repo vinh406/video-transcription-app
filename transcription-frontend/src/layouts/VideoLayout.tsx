@@ -92,7 +92,7 @@ export default function VideoLayout({
                                 transcriptUnderSummary={transcriptUnderSummary}
                             />
                             {(transcriptUnderSummary || !showSummary) && (
-                                <div className="border-t">
+                                <div className="border-t pt-4">
                                     <TranscriptPanel
                                         transcript={transcript}
                                         currentTime={currentTime}

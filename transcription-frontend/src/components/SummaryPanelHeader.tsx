@@ -26,7 +26,7 @@ export function SummaryPanelHeader({
 }: SummaryPanelHeaderProps) {
     return (
         <div className="mb-4 flex justify-between items-center">
-            {onToggleTranscriptPosition && (
+            {onToggleTranscriptPosition ? (
                 <Button
                     variant="outline"
                     size="sm"
@@ -38,7 +38,8 @@ export function SummaryPanelHeader({
                         ? "Hide Transcript"
                         : "Show Transcript"}
                 </Button>
-            )}
+            ) : <div></div>}
+
             <div className="flex items-center gap-2">
                 {summariesCount > 1 ? (
                     <div className="flex items-center gap-1">

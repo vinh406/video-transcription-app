@@ -118,7 +118,10 @@ export function SummaryPanel({
 
     if (!localSummaries || localSummaries.length === 0) {
         return (
-            <div className="flex justify-end h-full">
+            <div className="flex items-center justify-between h-full">
+                <h3 className="text-lg font-medium ml-2">
+                    Transcription
+                </h3>
                 {onSummarize && (
                     <Button
                         className="bg-green-600 hover:bg-green-700 text-white"
