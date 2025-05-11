@@ -22,7 +22,7 @@ from .schemas import (
 from collections import defaultdict
 from django_q.tasks import async_task
 from .tasks import process_transcription
-
+from pydub import AudioSegment
 api = Router()
 
 
@@ -108,7 +108,7 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             media_file.id,
             service,
             language,
-            cluster=task_group,
+            group=task_group,
         )
 
         return 200, {
@@ -136,17 +136,27 @@ def transcribe_audio(
     service = params.service if params else "whisperx"
     language = params.language if params else "auto"
 
-    # Create temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-        for chunk in file.chunks():
-            temp_audio.write(chunk)
-        temp_file_path = temp_audio.name
+    original_temp_file_path = None
+    audio_for_task_path = None
 
     try:
+        _name, original_file_extension = os.path.splitext(file.name)
+        # Ensure there's a suffix for pydub, default to .tmp if original file has no extension
+        original_file_suffix_for_tempfile = (
+            original_file_extension if original_file_extension else ".tmp"
+        )
+
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=original_file_suffix_for_tempfile
+        ) as temp_raw_file:
+            for chunk in file.chunks():
+                temp_raw_file.write(chunk)
+            original_temp_file_path = temp_raw_file.name
+
         # Calculate file hash
         hasher = hashlib.sha256()
-        with open(temp_file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
+        with open(original_temp_file_path, "rb") as f_hash:
+            for chunk in iter(lambda: f_hash.read(4096), b""):
                 hasher.update(chunk)
         file_hash = hasher.hexdigest()
 
@@ -154,22 +164,25 @@ def transcribe_audio(
         media_file = None
         try:
             media_file = MediaFile.objects.get(file_hash=file_hash)
-            # Check if we've transcribed with this service and language
-            existing = Transcription.objects.filter(
+            existing_transcription = Transcription.objects.filter(
                 media_file=media_file, service=service, language=language
             ).first()
-            if existing and existing.status == "completed":
+
+            if existing_transcription:
+                # If transcription exists (completed or in progress), clean up original temp file and return.
+                if os.path.exists(original_temp_file_path):
+                    os.remove(original_temp_file_path)
+                    original_temp_file_path = None
+
                 return 200, {
-                    "message": "Found existing transcription",
-                    "data": existing.segments,
-                    "transcription_id": str(existing.id),
-                    "status": existing.status,
-                }
-            elif existing:
-                return 200, {
-                    "message": "Transcription already in progress",
-                    "transcription_id": str(existing.id),
-                    "status": existing.status,
+                    "message": "Found existing transcription"
+                    if existing_transcription.status == "completed"
+                    else "Transcription already in progress",
+                    "data": existing_transcription.segments
+                    if existing_transcription.status == "completed"
+                    else None,
+                    "transcription_id": str(existing_transcription.id),
+                    "status": existing_transcription.status,
                 }
         except MediaFile.DoesNotExist:
             # Upload to storage
@@ -182,14 +195,31 @@ def transcribe_audio(
             )
             media_file.save()
 
+        # Convert the audio file to .wav format for processing
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav_file:
+            audio_for_task_path = temp_wav_file.name
+
+        # pydub needs format without the leading dot, e.g., "mp4", "mp3"
+        input_format = (
+            original_file_extension.lstrip(".") if original_file_extension else None
+        )
+        audio_segment = AudioSegment.from_file(
+            original_temp_file_path, format=input_format
+        )
+        audio_segment.export(audio_for_task_path, format="wav")
+
+        # The original temporary file can now be deleted.
+        if os.path.exists(original_temp_file_path):
+            os.remove(original_temp_file_path)
+            original_temp_file_path = None
+
         # Create transcription record with pending status
-        transcription = Transcription(
+        transcription = Transcription.objects.create(
             media_file=media_file,
             service=service,
             language=language,
             status="pending",
         )
-        transcription.save()
 
         # Determine task group based on service
         task_group = "whisperx" if service == "whisperx" else "default"
@@ -198,7 +228,7 @@ def transcribe_audio(
         async_task(
             process_transcription,
             transcription.id,
-            temp_file_path,
+            audio_for_task_path,  # Pass path to the processed .wav file
             media_file.id,
             service,
             language,
@@ -211,9 +241,10 @@ def transcribe_audio(
             "status": "processing",
         }
     except Exception as e:
-        # Clean up temp file in case of error
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+        if original_temp_file_path and os.path.exists(original_temp_file_path):
+            os.remove(original_temp_file_path)
+        if audio_for_task_path and os.path.exists(audio_for_task_path):
+            os.remove(audio_for_task_path)
         raise e
 
 
@@ -229,9 +260,9 @@ def summarize_transcript(request, data: SummarizeRequest):
     if transcription_id:
         try:
             transcription = Transcription.objects.get(id=transcription_id)
-
+            video_title = transcription.media_file.file_name
             # Generate summary using existing functionality
-            summary_result = summarize_content(data.segments)
+            summary_result = summarize_content(data.segments, video_title=video_title)
 
             # Create a new Summary record
             summary = Summary(
@@ -392,6 +423,8 @@ def delete_transcription(request, transcription_id: str):
 
         # If no other transcriptions use this media file, delete it too
         if not has_other_transcriptions:
+            if len(media_file.file_hash) != 11:
+                media_file.file.delete(save=False)
             media_file.delete()
 
         return 200, {"message": "Transcription deleted successfully"}

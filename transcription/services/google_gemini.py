@@ -44,7 +44,7 @@ def transcribe_google_api(file_path, language=None):
     import os
 
     # Define segment length (15 minutes in milliseconds)
-    SEGMENT_LENGTH = 15 * 60 * 1000  # 15 minutes in milliseconds
+    SEGMENT_LENGTH = 12 * 60 * 1000  # 12 minutes in milliseconds
 
     try:
         # Load the audio file
@@ -105,28 +105,40 @@ def process_audio_segment(file_path, language=None):
     """
 
     if language is not None and language != "auto":
-        system_instructions += f"""
-        IMPORTANT: Transcribe the audio AND OUTPUT THE TRANSCRIPTION IN {language.upper()} LANGUAGE.
-        If the audio is in a different language, you must both recognize and translate to {language}.
-        """
+        system_instructions = f"""
+            You are an expert multilingual translation service.
+            The provided audio file may contain segments spoken in different languages (e.g., English, Korean, Spanish, etc.).
+            Your primary task is to translate ALL spoken content from this audio into ONE single target language: {language.upper()}.
+            For example, if the audio contains both English and Korean speech, and the target language is {language.upper()}, you must translate the English speech to {language.upper()} AND the Korean speech to {language.upper()}.
+            Output ONLY the translated text in {language.upper()}. Do not include any original language text or any other commentary.
+            """
 
     system_instructions += """
     Return your response as TSV (Tab-Separated Values) with the following columns:
-    start\tend\ttext\tspeaker
+    start\tend\tspeaker\ttext
     
-    The 'start' and 'end' columns must follow the format of MM:SS:mmm.
+    The 'start' and 'end' columns must follow the format of MM:SS.
     Timestamps should have milli-second level accuracy.
     The 'speaker' column must indicate the speaker's name or use the format 'Speaker X'.
     You MUST include a header row.
     Each row must represent one segment.
     """
 
+    # Construct the contents for the API request
+    request_contents = [video]
+    if language is not None and language != "auto":
+        language_prompt_content = (
+            f"Translate all speech in the provided audio to {language.upper()}."
+        )
+        request_contents.append(language_prompt_content)
+
     # Generate content
     response = google_client.models.generate_content_stream(
         model="gemini-2.5-flash-preview-04-17",
-        contents=[video],
+        contents=request_contents,
         config=types.GenerateContentConfig(
             system_instruction=system_instructions,
+            # thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
     )
     
@@ -152,10 +164,10 @@ def process_audio_segment(file_path, language=None):
             if len(row) >= 3:  # At minimum we need start, end, and text
                 start_str = row[0]
                 end_str = row[1]
-                text_content = row[2]
+                text_content = row[3]
 
                 # Use default speaker if missing
-                speaker = row[3] if len(row) >= 4 and row[3].strip() else "Unknown"
+                speaker = row[2] if len(row) >= 4 and row[3].strip() else "Unknown"
 
                 try:
                     segment = {
@@ -179,21 +191,25 @@ def process_audio_segment(file_path, language=None):
 
 def parse_timestamp(timestamp_str):
     """
-    Convert a timestamp string in MM:SS:mmm format to seconds (float)
+    Convert a timestamp string in MM:SS format to seconds (float)
 
     Args:
-        timestamp_str (str): Timestamp in MM:SS:mmm format
+        timestamp_str (str): Timestamp in MM:SS format
 
     Returns:
         float: Timestamp in seconds
     """
     parts = timestamp_str.split(":")
-    if len(parts) != 3:
+    if len(parts) == 3:
+        minutes = int(parts[0])
+        seconds = int(parts[1])
+        milliseconds = int(parts[2])
+    elif len(parts) == 2:
+        minutes = int(parts[0])
+        seconds = int(parts[1])
+        milliseconds = 0
+    else:
         raise ValueError(f"Invalid timestamp format: {timestamp_str}")
-
-    minutes = int(parts[0])
-    seconds = int(parts[1])
-    milliseconds = int(parts[2])
 
     # Convert to seconds
     total_seconds = minutes * 60 + seconds + milliseconds / 1000
@@ -201,7 +217,7 @@ def parse_timestamp(timestamp_str):
     return total_seconds
 
 
-def summarize_content(transcript_segments):
+def summarize_content(transcript_segments, video_title):
     """Generate a chapter-based summary of the transcribed content using Gemini API"""
     if google_client is None:
         raise ValueError(
@@ -215,8 +231,12 @@ def summarize_content(transcript_segments):
             f"[{segment.start:.2f}s] {segment.speaker}: {segment.text}\n"
         )
 
+    if video_title:
+        title_prompt_part = f"The title of the content is: \"{video_title}\". Use this title for context if helpful.\n"
+
     summarization_prompt = f"""
-    Analyze and summarize the following transcript. Identify the main topics discussed and organize them into chapters:
+    {title_prompt_part}
+    Analyze and summarize the following content. Identify the main topics discussed and organize them into chapters:
     
     {formatted_transcript}
     """
@@ -225,38 +245,41 @@ def summarize_content(transcript_segments):
     You are an expert transcription analyzer that can organize long transcripts into logical chapters with key points.
     
     For this transcript:
-    1. First, carefully analyze the entire content to understand the main topics and their sequence
-    2. Create a concise overview (2-3 sentences) that captures the overall content
-    3. Divide the transcript into 3-5 logical chapters based on topic changes or natural transitions
-    4. For each chapter, provide:
+    1. First, identify the primary language used in the transcript.
+    2. Next, carefully analyze the entire content to understand the main topics and their sequence.
+    3. Create a concise overview (2-3 sentences) that captures the overall content, written in the identified language.
+    4. Divide the transcript into 3-5 logical chapters based on topic changes or natural transitions.
+    5. For each chapter, provide the following, all written in the identified language:
        - A descriptive chapter title
-       - The approximate start timestamp in the transcript
-       - 2-4 key points that capture the important information in that chapter
+       - The approximate start timestamp in the transcript (in seconds)
+       - 2-4 key points that capture the important information in that chapter, each with its relevant timestamp (in seconds)
 
-    You must return the summary in the same language as the transcript.
     Return your summary in TSV (Tab-Separated Values) format:
     
-    OVERVIEW:\t<A concise 2-3 sentence overview of the entire transcript>
-    CHAPTER\t<Chapter 1 Title>\t<start timestamp in seconds>
-    POINT\t<Key point 1 for Chapter 1>\t<relevant timestamp in seconds>
-    POINT\t<Key point 2 for Chapter 1>\t<relevant timestamp in seconds>
-    CHAPTER\t<Chapter 2 Title>\t<start timestamp in seconds>
-    POINT\t<Key point 1 for Chapter 2>\t<relevant timestamp in seconds>
-    POINT\t<Key point 2 for Chapter 2>\t<relevant timestamp in seconds>
+    LANGUAGE:\t<Identified language of the transcript>
+    OVERVIEW:\t<A concise 2-3 sentence overview in the identified language>
+    CHAPTER\t<Chapter 1 Title in identified language>\t<start timestamp in seconds>
+    POINT\t<Key point 1 for Chapter 1 in identified language>\t<relevant timestamp in seconds>
+    POINT\t<Key point 2 for Chapter 1 in identified language>\t<relevant timestamp in seconds>
+    CHAPTER\t<Chapter 2 Title in identified language>\t<start timestamp in seconds>
+    POINT\t<Key point 1 for Chapter 2 in identified language>\t<relevant timestamp in seconds>
+    POINT\t<Key point 2 for Chapter 2 in identified language>\t<relevant timestamp in seconds>
     ...
     
     Guidelines:
-    - The overview should capture the main theme without being too long
-    - Chapter titles should be short, descriptive phrases that clearly indicate the topic
-    - Key points should be specific and informative, not vague
-    - Timestamps should be provided as decimal numbers in seconds (e.g., 145.2)
-    - If you can't determine a precise timestamp for a point, provide your best estimate
-    - Ensure chapter divisions make logical sense based on topic transitions
+    - The identified language MUST be specified on the first line.
+    - The overview, chapter titles, and key points MUST be in the identified language.
+    - The overview should capture the main theme without being too long.
+    - Chapter titles should be short, descriptive phrases that clearly indicate the topic.
+    - Key points should be specific and informative, not vague.
+    - Timestamps should be provided as decimal numbers in seconds (e.g., 145.2).
+    - If you can't determine a precise timestamp for a point, provide your best estimate.
+    - Ensure chapter divisions make logical sense based on topic transitions.
     """
 
     try:
         response = google_client.models.generate_content(
-            model="models/gemini-2.0-flash-lite",
+            model="gemini-2.0-flash",
             contents=summarization_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
