@@ -2,6 +2,9 @@
 from django.db import models
 import uuid
 from django.contrib.auth.models import User
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
+from django_q.models import Task
 
 class MediaFile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -23,6 +26,7 @@ class Transcription(models.Model):
     service = models.CharField(max_length=20)  # google, elevenlabs, whisperx
     language = models.CharField(max_length=10)
     created_at = models.DateTimeField(auto_now_add=True)
+    task_id = models.CharField(max_length=255, null=True, blank=True, help_text="Django Q task ID")
 
     # New fields for tracking status
     STATUS_CHOICES = [
@@ -39,6 +43,21 @@ class Transcription(models.Model):
 
     def __str__(self):
         return f"{self.media_file.file_name} - {self.service}"
+
+@receiver(pre_delete, sender=Transcription)
+def delete_transcription_task(sender, instance, **kwargs):
+    """
+    Deletes the associated Django Q task if the transcription is deleted
+    before completion.
+    """
+    if instance.task_id:
+        try:
+            # Delete the task from Django Q
+            task = Task.objects.get(id=instance.task_id)
+            task.delete()
+        except Exception as e:
+            print(f"Error deleting Django Q task {instance.task_id} for transcription {instance.id}: {e}")
+
 
 class Summary(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

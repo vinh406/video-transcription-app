@@ -100,8 +100,8 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
         # Determine task group based on service
         task_group = "whisperx" if service == "whisperx" else "default"
 
-        # Enqueue the task
-        async_task(
+        # Enqueue the transcription task
+        q_task_id = async_task(
             process_transcription,
             transcription.id,
             temp_file_path,
@@ -110,6 +110,10 @@ def transcribe_youtube(request, data: YouTubeTranscriptionRequest):
             language,
             group=task_group,
         )
+
+        # Save the task ID to the transcription model
+        transcription.task_id = q_task_id
+        transcription.save()
 
         return 200, {
             "message": "Transcription queued successfully",
@@ -224,8 +228,8 @@ def transcribe_audio(
         # Determine task group based on service
         task_group = "whisperx" if service == "whisperx" else "default"
 
-        # Enqueue the task
-        async_task(
+        # Enqueue the transcription task
+        q_task_id = async_task(
             process_transcription,
             transcription.id,
             audio_for_task_path,  # Pass path to the processed .wav file
@@ -234,6 +238,10 @@ def transcribe_audio(
             language,
             group=task_group,
         )
+
+        # Save the task ID to the transcription model
+        transcription.task_id = q_task_id
+        transcription.save()
 
         return 200, {
             "message": "Transcription queued successfully",
