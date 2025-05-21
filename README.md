@@ -9,6 +9,11 @@ This project is a web application for audio and video transcription with built-i
 - **Interactive Media Player**: Synchronized transcript and media playback
 - **Transcription History**: Track and manage previous transcriptions
 
+## Screenshots
+![image](https://github.com/user-attachments/assets/71be4c6e-1f64-439b-b2e7-f99d86e6df23)
+![image](https://github.com/user-attachments/assets/518750e9-ecf7-4d8c-bdd8-dd10a73fb098)
+![image](https://github.com/user-attachments/assets/6379705e-84ce-4e46-8a03-f18b243f6005)
+
 ## Project Structure
 
 The project consists of two main parts:
